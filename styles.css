@@ -452,7 +452,8 @@ input[type="search"]:focus {
 
 .upcoming-call h3,
 .history h3,
-.filings h3 {
+.filings h3,
+.overview h3 {
   margin: 0 0 10px;
   font-family: var(--serif);
   font-size: 22px;
@@ -571,6 +572,10 @@ code {
 
 .company-page a {
   color: var(--gold-soft);
+}
+
+.eps-last {
+  color: var(--mute);
 }
 
 @media (max-width: 760px) {

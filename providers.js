@@ -36,6 +36,57 @@ export function canonicalSymbol(symbol) {
   return String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
 }
 
+const NAME_SPECIAL = {
+  inc: "Inc",
+  corp: "Corp",
+  ltd: "Ltd",
+  llc: "LLC",
+  llp: "LLP",
+  lp: "LP",
+  plc: "PLC",
+  nv: "NV",
+  sa: "SA",
+  ag: "AG",
+  se: "SE",
+  co: "Co",
+  usa: "USA",
+  us: "US",
+  uk: "UK",
+  adr: "ADR",
+  ads: "ADS",
+  etf: "ETF",
+  etn: "ETN",
+  reit: "REIT",
+  ai: "AI",
+  spa: "SPA",
+  bancorp: "Bancorp",
+};
+
+const NAME_SMALL = new Set(["and", "or", "of", "the", "for", "in", "on", "at", "to", "a", "an", "de", "da", "di"]);
+
+export function formatCompanyName(name) {
+  let s = String(name || "").trim().replace(/\s+/g, " ");
+  if (!s) return "";
+  s = s.replace(/\s+(common stock|ordinary shares|american depositary shares)$/i, "");
+  const letters = s.match(/[A-Za-z]/g) || [];
+  if (letters.length < 2) return s;
+  const lowerCount = (s.match(/[a-z]/g) || []).length;
+  const upperCount = (s.match(/[A-Z]/g) || []).length;
+  if (lowerCount > 0 && upperCount / letters.length < 0.8) return s;
+
+  let index = 0;
+  return s.replace(/[A-Za-z]+(?:'[A-Za-z]+)?/g, (word) => {
+    const i = index++;
+    const lower = word.toLowerCase();
+    if (NAME_SPECIAL[lower]) return NAME_SPECIAL[lower];
+    if (i > 0 && NAME_SMALL.has(lower)) return lower;
+    if (/^o'[a-z]/i.test(word)) {
+      return `O'${word.slice(2, 3).toUpperCase()}${word.slice(3).toLowerCase()}`;
+    }
+    return lower.charAt(0).toUpperCase() + lower.slice(1);
+  });
+}
+
 export function formatEps(value) {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value === "string") {
@@ -82,7 +133,7 @@ function baseCall(partial) {
   return {
     date: partial.date || "",
     symbol: canonicalSymbol(partial.symbol),
-    name: (partial.name || "").trim(),
+    name: formatCompanyName(partial.name),
     time: partial.time || "unspecified",
     marketCap: Number(partial.marketCap) || 0,
     marketCapDisplay: partial.marketCapDisplay || (partial.marketCap ? "" : "—"),
@@ -193,7 +244,7 @@ function mergePair(prev, call) {
     ...prev,
     date: keepDate,
     symbol: prev.symbol || call.symbol,
-    name: nonempty(prev.name) ? prev.name : call.name,
+    name: nonempty(prev.name) ? formatCompanyName(prev.name) : formatCompanyName(call.name),
     time,
     marketCap: prev.marketCap || call.marketCap,
     marketCapDisplay:
@@ -218,7 +269,7 @@ function mergePair(prev, call) {
   };
 }
 
-export function mergeCalls(base, extras, { dateWindow = 6 } = {}) {
+export function mergeCalls(base, extras, { dateWindow = 45 } = {}) {
   const bySymbol = new Map();
 
   const put = (call) => {
@@ -226,6 +277,7 @@ export function mergeCalls(base, extras, { dateWindow = 6 } = {}) {
     const incoming = {
       ...call,
       symbol: canonicalSymbol(call.symbol),
+      name: formatCompanyName(call.name),
       sources: [...new Set(call.sources || [])],
     };
     if (!incoming.symbol) return;

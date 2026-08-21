@@ -1,3 +1,5 @@
+import { formatCompanyName, formatEps, canonicalSymbol } from "./providers.js";
+
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
@@ -62,7 +64,7 @@ export function normalizeCompany({ info, summary, profile, surprises } = {}) {
   const history = surprises?.earningsSurpriseTable?.rows || [];
   return {
     symbol: (info?.symbol || profile?.Symbol?.value || "").toUpperCase(),
-    name: val(profile?.CompanyName) || info?.companyName || "",
+    name: formatCompanyName(val(profile?.CompanyName) || info?.companyName || ""),
     exchange: info?.exchange || val(summaryData.Exchange),
     stockType: info?.stockType || "",
     marketStatus: info?.marketStatus || "",
@@ -168,11 +170,17 @@ const EDGAR_FORMS = new Set([
   "S-1",
 ]);
 
-export async function fetchNasdaqQuoteLite(symbol, { fetchImpl = fetch } = {}) {
+export async function fetchNasdaqQuoteLite(symbol, { fetchImpl = fetch, withEps = false } = {}) {
   const ticker = String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
   if (!isSymbol(ticker)) return null;
   const hit = quoteCache.get(ticker);
-  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.data;
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) {
+    if (!hit.data || !withEps || hit.data.epsChecked) return hit.data;
+    const extra = await fetchLastEps(ticker, fetchImpl);
+    const data = { ...hit.data, ...extra, epsChecked: true };
+    quoteCache.set(ticker, { at: hit.at, data });
+    return data;
+  }
 
   let info = null;
   for (const assetclass of ["stocks", "etf"]) {
@@ -201,14 +209,109 @@ export async function fetchNasdaqQuoteLite(symbol, { fetchImpl = fetch } = {}) {
   }
   const capRaw = val(summary?.summaryData?.MarketCap);
   const marketCap = parseCapNumber(capRaw);
-  const data = {
+  let data = {
     symbol: ticker,
-    name: (info.companyName || "").replace(/\s+Common Stock$/i, "").trim(),
+    name: formatCompanyName((info.companyName || "").replace(/\s+Common Stock$/i, "")),
     marketCap,
     marketCapDisplay: formatCapNumber(marketCap),
+    lastEpsDisplay: "",
+    epsChecked: false,
   };
+  if (withEps) {
+    data = { ...data, ...(await fetchLastEps(ticker, fetchImpl)), epsChecked: true };
+  }
   quoteCache.set(ticker, { at: Date.now(), data });
   return data;
+}
+
+async function fetchLastEps(ticker, fetchImpl) {
+  try {
+    const surprises = await nasdaqJson(
+      `/api/company/${encodeURIComponent(ticker)}/earnings-surprise`,
+      { fetchImpl }
+    );
+    const row = surprises?.earningsSurpriseTable?.rows?.[0];
+    if (!row) return { lastEpsDisplay: "" };
+    const eps = formatEps(row.eps);
+    const consensus = formatEps(row.consensusForecast);
+    return {
+      lastEpsDisplay: eps,
+      lastConsensusDisplay: consensus,
+    };
+  } catch {
+    return { lastEpsDisplay: "" };
+  }
+}
+
+function applyQuotes(calls, quotes) {
+  return calls.map((call) => {
+    const quote = quotes.get(call.symbol) || quotes.get(canonicalSymbol(call.symbol));
+    const name = formatCompanyName(call.name || quote?.name || "");
+    if (!quote) {
+      return name !== call.name ? { ...call, name } : call;
+    }
+    const marketCap = call.marketCap || quote.marketCap || 0;
+    return {
+      ...call,
+      name: name || call.name,
+      marketCap,
+      marketCapDisplay: call.marketCap ? call.marketCapDisplay : quote.marketCapDisplay || "—",
+      lastEpsDisplay: call.lastEpsDisplay || quote.lastEpsDisplay || "",
+    };
+  });
+}
+
+async function lookupQuote(symbol, { fetchImpl, withEps } = {}) {
+  try {
+    if (typeof window !== "undefined") {
+      const qs = withEps ? "?eps=1" : "";
+      const res = await fetch(`/api/quote/${encodeURIComponent(symbol)}${qs}`, { cache: "no-store" });
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const payload = await res.json();
+        if (res.ok && payload?.symbol) return payload;
+      }
+    }
+  } catch {
+    // Fall through to a direct Nasdaq lookup.
+  }
+  return fetchNasdaqQuoteLite(symbol, { fetchImpl, withEps }).catch(() => null);
+}
+
+export async function enrichSparseCalls(
+  calls,
+  { fetchImpl = fetch, limit = 250, onProgress } = {}
+) {
+  const missing = [];
+  const seen = new Set();
+  const wantEps = new Set();
+  for (const call of calls) {
+    if (seen.has(call.symbol)) continue;
+    if (call.marketCap && call.name) continue;
+    seen.add(call.symbol);
+    missing.push(call.symbol);
+    if (!nonemptyField(call.epsForecast)) wantEps.add(call.symbol);
+    if (missing.length >= limit) break;
+  }
+
+  if (!missing.length) {
+    const named = applyQuotes(calls, new Map());
+    return named.every((c, i) => c === calls[i]) ? calls : named;
+  }
+
+  const quotes = new Map();
+  let done = 0;
+  await mapPool(missing, 5, async (symbol) => {
+    const quote = await lookupQuote(symbol, { fetchImpl, withEps: wantEps.has(symbol) });
+    if (quote) quotes.set(symbol, quote);
+    done += 1;
+    if (onProgress && done % 10 === 0) onProgress(applyQuotes(calls, quotes));
+  });
+  return applyQuotes(calls, quotes);
+}
+
+function nonemptyField(value) {
+  return value !== null && value !== undefined && String(value).trim() !== "" && value !== "—";
 }
 
 async function mapPool(items, width, worker) {
@@ -220,52 +323,6 @@ async function mapPool(items, width, worker) {
     }
   });
   await Promise.all(runners);
-}
-
-export async function enrichSparseCalls(calls, { fetchImpl = fetch, limit = 80 } = {}) {
-  const missing = [];
-  const seen = new Set();
-  for (const call of calls) {
-    if (seen.has(call.symbol)) continue;
-    if (call.marketCap && call.name) continue;
-    seen.add(call.symbol);
-    missing.push(call.symbol);
-    if (missing.length >= limit) break;
-  }
-  if (!missing.length) return calls;
-
-  const quotes = new Map();
-  await mapPool(missing, 4, async (symbol) => {
-    try {
-      if (typeof window !== "undefined") {
-        const res = await fetch(`/api/quote/${encodeURIComponent(symbol)}`, { cache: "no-store" });
-        const contentType = res.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const payload = await res.json();
-          if (res.ok && payload?.symbol) {
-            quotes.set(symbol, payload);
-            return;
-          }
-        }
-      }
-    } catch {
-      // Fall through to a direct Nasdaq lookup.
-    }
-    const quote = await fetchNasdaqQuoteLite(symbol, { fetchImpl }).catch(() => null);
-    if (quote) quotes.set(symbol, quote);
-  });
-
-  return calls.map((call) => {
-    const quote = quotes.get(call.symbol);
-    if (!quote) return call;
-    const marketCap = call.marketCap || quote.marketCap || 0;
-    return {
-      ...call,
-      name: call.name || quote.name || "",
-      marketCap,
-      marketCapDisplay: call.marketCap ? call.marketCapDisplay : quote.marketCapDisplay || "—",
-    };
-  });
 }
 
 function padCik(value) {
@@ -365,7 +422,7 @@ export async function fetchCompanyBundle(symbol, { fetchImpl = fetch } = {}) {
   return {
     ...profile,
     symbol: profile.symbol || ticker,
-    name: profile.name || filings.name || "",
+    name: formatCompanyName(profile.name || filings.name || ""),
     cik: filings.cik || "",
     sic: filings.sic || "",
     filings: filings.filings || [],

@@ -1,4 +1,4 @@
-import { PROVIDERS, fetchProvider, mergeCalls } from "./providers.js";
+import { PROVIDERS, fetchProvider, mergeCalls, formatCompanyName, formatEps, canonicalSymbol } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls } from "./company.js";
 
 const TIME_LABEL = {
@@ -186,6 +186,49 @@ function formatCapLabel(value) {
   return String(value);
 }
 
+function displayName(value) {
+  return formatCompanyName(value) || "";
+}
+
+function epsCell(call) {
+  if (call.epsForecast) return escapeHtml(call.epsForecast);
+  if (call.lastEpsDisplay) {
+    return `<span class="eps-last" title="Last reported EPS">${escapeHtml(call.lastEpsDisplay)}</span>`;
+  }
+  return "—";
+}
+
+function hydrateCallsFromProfile(symbol, profile) {
+  if (!state.snapshot?.calls || !profile) return;
+  const ticker = canonicalSymbol(symbol);
+  const capNum = Number(String(profile.marketCap || "").replace(/[$,]/g, ""));
+  const last = profile.earningsHistory?.[0];
+  let changed = false;
+  const calls = state.snapshot.calls.map((call) => {
+    if (canonicalSymbol(call.symbol) !== ticker) return call;
+    const next = { ...call };
+    const name = displayName(profile.name || next.name);
+    if (name && next.name !== name) {
+      next.name = name;
+      changed = true;
+    }
+    if (!next.marketCap && Number.isFinite(capNum) && capNum > 0) {
+      next.marketCap = capNum;
+      next.marketCapDisplay = formatCapLabel(profile.marketCap);
+      changed = true;
+    }
+    if (!next.epsForecast && last && last.eps !== "" && last.eps != null) {
+      const lastEps = formatEps(last.eps);
+      if (lastEps && next.lastEpsDisplay !== lastEps) {
+        next.lastEpsDisplay = lastEps;
+        changed = true;
+      }
+    }
+    return next;
+  });
+  if (changed) state.snapshot = { ...state.snapshot, calls, count: calls.length };
+}
+
 function callsForSymbol(symbol) {
   return (state.snapshot?.calls || []).filter((call) => call.symbol === symbol);
 }
@@ -211,7 +254,7 @@ async function loadCompanyProfile(symbol) {
 function renderCompany(symbol, profile) {
   const upcoming = callsForSymbol(symbol);
   const selected = upcoming.find((c) => c.date === state.companyDate) || upcoming[0];
-  const name = profile?.name || selected?.name || symbol;
+  const name = displayName(profile?.name || selected?.name || symbol);
   const dir = profile?.direction === "down" ? "down" : profile?.direction === "up" ? "up" : "";
   const chg = [profile?.netChange, profile?.percentageChange]
     .filter(Boolean)
@@ -229,6 +272,16 @@ function renderCompany(symbol, profile) {
       ? `<p class="empty">Live quote unavailable. ${escapeHtml(profile.error || profile.nasdaqError)}</p>`
       : "";
 
+  const capDisplay =
+    formatCapLabel(profile?.marketCap) !== "—"
+      ? formatCapLabel(profile.marketCap)
+      : selected?.marketCapDisplay || "";
+  const lastEarn = profile?.earningsHistory?.[0];
+  const latestFiling = profile?.filings?.[0];
+  const filingCell = latestFiling
+    ? `<a href="${escapeHtml(latestFiling.documentUrl || latestFiling.indexUrl)}" target="_blank" rel="noopener">${escapeHtml(latestFiling.form)}${latestFiling.filed ? ` · ${escapeHtml(latestFiling.filed)}` : ""}</a>`
+    : "";
+
   const callCards = upcoming.length
     ? upcoming
         .map((call) => {
@@ -236,6 +289,10 @@ function renderCompany(symbol, profile) {
           const tags = extras
             .map((s) => `<span class="tag">${escapeHtml(SOURCE_LABEL[s] || s)}</span>`)
             .join("");
+          const callCap =
+            call.marketCapDisplay && call.marketCapDisplay !== "—"
+              ? call.marketCapDisplay
+              : capDisplay;
           return `<article class="upcoming-call">
             <h3>${call === selected ? "This call" : "Also on the calendar"}</h3>
             <p><span class="time-badge ${call.time}">${TIME_LABEL[call.time]}</span> · ${longDate(call.date)}${tags}</p>
@@ -245,7 +302,7 @@ function renderCompany(symbol, profile) {
               <div><dt>Quarter</dt><dd>${dash(call.fiscalQuarterEnding)}</dd></div>
               <div><dt>Last year EPS</dt><dd>${dash(call.lastYearEPS)}</dd></div>
               <div><dt># estimates</dt><dd>${dash(call.estimateCount || "")}</dd></div>
-              <div><dt>Market cap</dt><dd>${dash(call.marketCapDisplay)}</dd></div>
+              <div><dt>Market cap</dt><dd>${dash(callCap)}</dd></div>
             </dl>
           </article>`;
         })
@@ -322,22 +379,28 @@ function renderCompany(symbol, profile) {
       ? `<p class="empty">SEC filings unavailable. ${escapeHtml(profile.edgarError)}</p>`
       : "";
 
-  const stats = profile && !profile.loading && (profile.price || profile.sector)
-    ? `<dl class="stat-grid">
-        <div><dt>Sector</dt><dd>${dash(profile.sector)}</dd></div>
-        <div><dt>Industry</dt><dd>${dash(profile.industry)}</dd></div>
-        <div><dt>Exchange</dt><dd>${dash(profile.exchange)}</dd></div>
-        <div><dt>Market cap</dt><dd>${dash(formatCapLabel(profile.marketCap) === "—" ? selected?.marketCapDisplay : formatCapLabel(profile.marketCap))}</dd></div>
-        <div><dt>52-week</dt><dd>${dash(profile.week52)}</dd></div>
-        <div><dt>Day range</dt><dd>${dash(profile.dayRange)}</dd></div>
-        <div><dt>Volume</dt><dd>${dash(profile.volume)}</dd></div>
-        <div><dt>Avg volume</dt><dd>${dash(profile.averageVolume)}</dd></div>
-        <div><dt>Prev close</dt><dd>${dash(profile.previousClose)}</dd></div>
-        <div><dt>1y target</dt><dd>${dash(profile.target)}</dd></div>
-        <div><dt>Dividend</dt><dd>${dash(profile.dividend)}</dd></div>
-        <div><dt>Yield</dt><dd>${dash(profile.yield)}</dd></div>
-      </dl>`
-    : "";
+  const overview =
+    profile && !profile.loading
+      ? `<section class="overview history">
+        <h3>Overview</h3>
+        <dl class="stat-grid">
+          <div><dt>Sector</dt><dd>${dash(profile.sector)}</dd></div>
+          <div><dt>Industry</dt><dd>${dash(profile.industry)}</dd></div>
+          <div><dt>Exchange</dt><dd>${dash(profile.exchange)}</dd></div>
+          <div><dt>Market cap</dt><dd>${dash(capDisplay)}</dd></div>
+          <div><dt>EPS est.</dt><dd>${dash(selected?.epsForecast)}</dd></div>
+          <div><dt>Last EPS</dt><dd>${dash(lastEarn ? formatEps(lastEarn.eps) : selected?.lastEpsDisplay || selected?.lastYearEPS)}</dd></div>
+          <div><dt>Last surprise</dt><dd>${lastEarn && lastEarn.surprise !== "" && lastEarn.surprise != null ? `${escapeHtml(lastEarn.surprise)}%` : "—"}</dd></div>
+          <div><dt>Latest filing</dt><dd>${filingCell || "—"}</dd></div>
+          <div><dt>52-week</dt><dd>${dash(profile.week52)}</dd></div>
+          <div><dt>Day range</dt><dd>${dash(profile.dayRange)}</dd></div>
+          <div><dt>Volume</dt><dd>${dash(profile.volume)}</dd></div>
+          <div><dt>Avg volume</dt><dd>${dash(profile.averageVolume)}</dd></div>
+          <div><dt>Prev close</dt><dd>${dash(profile.previousClose)}</dd></div>
+          <div><dt>1y target</dt><dd>${dash(profile.target)}</dd></div>
+        </dl>
+      </section>`
+      : "";
 
   els.viewCompany.innerHTML = `
     <button class="back-link" type="button" data-back>← Back to calendar</button>
@@ -357,7 +420,7 @@ function renderCompany(symbol, profile) {
     ${error}
     ${profile?.description ? `<p class="company-desc">${escapeHtml(profile.description)}</p>` : ""}
     ${website}
-    ${stats}
+    ${overview}
     ${callCards}
     ${history}
     ${filings}
@@ -380,10 +443,14 @@ async function showCompany(symbol, date) {
   state.companyDate = date || "";
   const cached = state.companyCache[ticker];
   renderCompany(ticker, cached || { loading: true });
-  if (cached && !cached.loading) return;
+  if (cached && !cached.loading) {
+    hydrateCallsFromProfile(ticker, cached);
+    return;
+  }
   try {
     const profile = await loadCompanyProfile(ticker);
     state.companyCache[ticker] = profile;
+    hydrateCallsFromProfile(ticker, profile);
     if (state.tab === "company" && state.companySymbol === ticker) {
       renderCompany(ticker, profile);
     }
@@ -455,11 +522,11 @@ function renderBoard(calls) {
             <td><span class="time-badge ${call.time}">${TIME_LABEL[call.time]}</span></td>
             <td class="symbol">${escapeHtml(call.symbol)}</td>
             <td>
-              <div class="name-link">${escapeHtml(call.name || "—")}</div>
+              <div class="name-link">${escapeHtml(displayName(call.name) || "—")}</div>
               <div class="company hide-sm">${escapeHtml(call.fiscalQuarterEnding || "")}${tags ? ` ${tags}` : ""}</div>
             </td>
             <td class="num">${escapeHtml(call.marketCapDisplay || "—")}</td>
-            <td class="num hide-sm">${escapeHtml(call.epsForecast || "—")}</td>
+            <td class="num hide-sm">${epsCell(call)}</td>
             ${showRev ? `<td class="num hide-sm">${escapeHtml(call.revenueEstimateDisplay || "—")}</td>` : ""}
             <td class="num hide-sm">${call.estimateCount || "—"}</td>
           </tr>`;
@@ -630,6 +697,7 @@ async function enrichFromKeys(base) {
       ...base,
       calls: (base.calls || []).map((c) => ({
         ...c,
+        name: displayName(c.name),
         sources: c.sources?.length ? c.sources : ["nasdaq"],
       })),
       count: base.calls.length,
@@ -641,14 +709,24 @@ async function enrichFromKeys(base) {
 
 async function applyCalendar(base) {
   const merged = await enrichFromKeys(base);
-  state.snapshot = merged;
+  const named = {
+    ...merged,
+    calls: (merged.calls || []).map((c) => ({ ...c, name: displayName(c.name) })),
+  };
+  named.count = named.calls.length;
+  state.snapshot = named;
   if (state.tab === "calendar") render();
   else if (state.tab === "company" && state.companySymbol) {
     showCompany(state.companySymbol, state.companyDate);
   }
-  const filled = await enrichSparseCalls(merged.calls);
-  if (filled === merged.calls) return;
-  state.snapshot = { ...merged, calls: filled, count: filled.length };
+  const filled = await enrichSparseCalls(named.calls, {
+    onProgress: (calls) => {
+      state.snapshot = { ...named, calls, count: calls.length };
+      if (state.tab === "calendar") render();
+    },
+  });
+  if (filled === named.calls) return;
+  state.snapshot = { ...named, calls: filled, count: filled.length };
   if (state.tab === "calendar") render();
   else if (state.tab === "company" && state.companySymbol) {
     showCompany(state.companySymbol, state.companyDate);

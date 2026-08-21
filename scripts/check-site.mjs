@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, formatEps } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, formatEps, formatCompanyName } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -121,6 +121,37 @@ assert(hyphen[0].symbol === "BRK.B", "keep Nasdaq share-class ticker");
 assert(hyphen[0].date === "2026-08-26", "keep Nasdaq date across a 5-day gap");
 assert(hyphen[0].epsForecast === "$4.00", "keep Nasdaq EPS over blank Alpha Vantage estimate");
 assert(hyphen[0].marketCapDisplay === "$900B", "hyphen merge keeps cap display");
+
+const far = mergeCalls(
+  [
+    {
+      date: "2026-08-26",
+      symbol: "AAA",
+      name: "Aaa Inc",
+      time: "after-close",
+      marketCap: 10,
+      marketCapDisplay: "$10",
+      epsForecast: "$0.10",
+      sources: ["nasdaq"],
+    },
+  ],
+  [
+    normalizeAlphaVantage({
+      reportDate: "2026-09-10",
+      symbol: "AAA",
+      name: "AAA INC",
+      estimate: "None",
+    }),
+  ]
+);
+assert(far.length === 1, "merge same ticker 15 days apart");
+assert(far[0].date === "2026-08-26", "keep Nasdaq date when Alpha Vantage is far");
+assert(far[0].epsForecast === "$0.10", "keep Nasdaq EPS when dates differ");
+assert(formatCompanyName("APPLE INC") === "Apple Inc", "title-case all-caps names");
+assert(formatCompanyName("BANK OF AMERICA CORP") === "Bank of America Corp", "small words stay short");
+assert(formatCompanyName("NVIDIA Corporation") === "NVIDIA Corporation", "keep mixed-case names");
+assert(formatCompanyName("XYZ INC") === "Xyz Inc", "caps inc suffix");
+assert(formatCompanyName("Boxabl, Inc. Common Stock") === "Boxabl, Inc.", "drop common stock suffix");
 
 const csv = parseCsv("symbol,name,reportDate,estimate\nAAPL,Apple Inc,2026-08-21,1.5");
 assert(normalizeAlphaVantage(csv[0]).symbol === "AAPL", "alpha csv normalize");

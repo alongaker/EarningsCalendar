@@ -162,7 +162,9 @@ const server = createServer(async (req, res) => {
       return;
     }
     try {
-      const data = await fetchNasdaqQuoteLite(symbol);
+      const data = await fetchNasdaqQuoteLite(symbol, {
+        withEps: url.searchParams.get("eps") === "1",
+      });
       if (!data) {
         sendJson(res, 404, { error: "Quote not found" });
         return;
