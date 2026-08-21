@@ -1,0 +1,15 @@
+{
+  "name": "earnings-calendar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Upcoming earnings call calendar — local server plus GitHub Pages site",
+  "scripts": {
+    "start": "node server.js",
+    "fetch": "node scripts/fetch-earnings.mjs",
+    "check": "node scripts/check-site.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
