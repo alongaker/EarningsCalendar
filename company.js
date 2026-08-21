@@ -5,10 +5,33 @@ export function isSymbol(value) {
   return /^[A-Za-z][A-Za-z0-9.\-]{0,9}$/.test(String(value || "").trim());
 }
 
+function groupThousands(whole) {
+  return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+export function roundToHundredth(value) {
+  if (value === null || value === undefined || value === "") return value ?? "";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return value;
+    const frac = String(value).split(".")[1];
+    if (!frac || frac.length <= 2) return value;
+    return Number(value.toFixed(2));
+  }
+  return String(value).replace(/(-?)(\d{1,3}(?:,\d{3})*|\d+)\.(\d+)/g, (full, sign, intPart, frac) => {
+    if (frac.length <= 2) return full;
+    const n = Number(`${sign}${intPart.replace(/,/g, "")}.${frac}`);
+    if (!Number.isFinite(n)) return full;
+    const rounded = Math.abs(n).toFixed(2);
+    const [whole, decimals] = rounded.split(".");
+    const grouped = intPart.includes(",") ? groupThousands(whole) : whole;
+    return `${n < 0 ? "-" : ""}${grouped}.${decimals}`;
+  });
+}
+
 function val(field) {
   if (field === null || field === undefined) return "";
-  if (typeof field === "object") return field.value ?? field.label ?? "";
-  return String(field);
+  if (typeof field === "object") return roundToHundredth(field.value ?? field.label ?? "");
+  return roundToHundredth(String(field));
 }
 
 async function nasdaqJson(path, { fetchImpl = fetch } = {}) {
@@ -43,22 +66,22 @@ export function normalizeCompany({ info, summary, profile, surprises } = {}) {
     exchange: info?.exchange || val(summaryData.Exchange),
     stockType: info?.stockType || "",
     marketStatus: info?.marketStatus || "",
-    price: primary.lastSalePrice || "",
-    netChange: primary.netChange || "",
-    percentageChange: primary.percentageChange || "",
+    price: roundToHundredth(primary.lastSalePrice || ""),
+    netChange: roundToHundredth(primary.netChange || ""),
+    percentageChange: roundToHundredth(primary.percentageChange || ""),
     direction: primary.deltaIndicator || "",
     asOf: primary.lastTradeTimestamp || "",
-    bid: primary.bidPrice || "",
-    ask: primary.askPrice || "",
-    volume: val(summaryData.ShareVolume) || primary.volume || "",
-    averageVolume: val(summaryData.AverageVolume),
-    previousClose: val(summaryData.PreviousClose),
-    dayRange: val(stats.dayrange) || val(summaryData.TodayHighLow),
-    week52: val(stats.fiftyTwoWeekHighLow) || val(summaryData.FiftTwoWeekHighLow),
-    marketCap: val(summaryData.MarketCap),
-    target: val(summaryData.OneYrTarget),
-    dividend: val(summaryData.AnnualizedDividend),
-    yield: val(summaryData.Yield),
+    bid: roundToHundredth(primary.bidPrice || ""),
+    ask: roundToHundredth(primary.askPrice || ""),
+    volume: roundToHundredth(val(summaryData.ShareVolume) || primary.volume || ""),
+    averageVolume: roundToHundredth(val(summaryData.AverageVolume)),
+    previousClose: roundToHundredth(val(summaryData.PreviousClose)),
+    dayRange: roundToHundredth(val(stats.dayrange) || val(summaryData.TodayHighLow)),
+    week52: roundToHundredth(val(stats.fiftyTwoWeekHighLow) || val(summaryData.FiftTwoWeekHighLow)),
+    marketCap: roundToHundredth(val(summaryData.MarketCap)),
+    target: roundToHundredth(val(summaryData.OneYrTarget)),
+    dividend: roundToHundredth(val(summaryData.AnnualizedDividend)),
+    yield: roundToHundredth(val(summaryData.Yield)),
     exDividend: val(summaryData.ExDividendDate),
     sector: val(profile?.Sector) || val(summaryData.Sector),
     industry: val(profile?.Industry) || val(summaryData.Industry),
@@ -68,9 +91,9 @@ export function normalizeCompany({ info, summary, profile, surprises } = {}) {
     earningsHistory: history.map((row) => ({
       fiscalQtrEnd: row.fiscalQtrEnd || "",
       dateReported: row.dateReported || "",
-      eps: row.eps ?? "",
-      consensus: row.consensusForecast || "",
-      surprise: row.percentageSurprise || "",
+      eps: roundToHundredth(row.eps ?? ""),
+      consensus: roundToHundredth(row.consensusForecast || ""),
+      surprise: roundToHundredth(row.percentageSurprise || ""),
     })),
   };
 }

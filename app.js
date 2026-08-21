@@ -1,5 +1,5 @@
 import { PROVIDERS, fetchProvider, mergeCalls } from "./providers.js";
-import { fetchNasdaqCompany, isSymbol } from "./company.js";
+import { fetchNasdaqCompany, isSymbol, roundToHundredth } from "./company.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -169,8 +169,9 @@ function setView(tab, opts = {}) {
 }
 
 function dash(value) {
-  return value !== null && value !== undefined && String(value).trim() !== ""
-    ? escapeHtml(value)
+  const rounded = roundToHundredth(value);
+  return rounded !== null && rounded !== undefined && String(rounded).trim() !== ""
+    ? escapeHtml(rounded)
     : "—";
 }
 
@@ -212,7 +213,10 @@ function renderCompany(symbol, profile) {
   const selected = upcoming.find((c) => c.date === state.companyDate) || upcoming[0];
   const name = profile?.name || selected?.name || symbol;
   const dir = profile?.direction === "down" ? "down" : profile?.direction === "up" ? "up" : "";
-  const chg = [profile?.netChange, profile?.percentageChange].filter(Boolean).join("  ");
+  const chg = [profile?.netChange, profile?.percentageChange]
+    .filter(Boolean)
+    .map((part) => roundToHundredth(part))
+    .join("  ");
   const websiteUrl = /^https?:\/\//i.test(profile?.website || "") ? profile.website : "";
   const website = websiteUrl
     ? `<p><a href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener">${escapeHtml(websiteUrl.replace(/^https?:\/\//, ""))}</a></p>`

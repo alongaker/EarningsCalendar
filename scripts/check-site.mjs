@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
 import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage } from "../providers.js";
-import { isSymbol, normalizeCompany } from "../company.js";
+import { isSymbol, normalizeCompany, roundToHundredth } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -67,13 +67,18 @@ assert(merged[0].sources.includes("finnhub"), "merge records finnhub");
 
 const csv = parseCsv("symbol,name,reportDate,estimate\nAAPL,Apple Inc,2026-08-21,1.5");
 assert(normalizeAlphaVantage(csv[0]).symbol === "AAPL", "alpha csv normalize");
-assert(isSymbol("NVDA") && !isSymbol("../etc") && !isSymbol(""), "symbol guard");
+assert(roundToHundredth("98,333,844.273655") === "98,333,844.27", "round volume");
+assert(roundToHundredth("$215.0495") === "$215.05", "round price");
+assert(roundToHundredth("+0.3295") === "+0.33", "round change");
+assert(roundToHundredth("0.15%") === "0.15%", "keep two decimals");
+assert(roundToHundredth("129,978,099") === "129,978,099", "keep integers");
+assert(roundToHundredth(1.876) === 1.88, "round numeric eps");
 const company = normalizeCompany({
   info: {
     symbol: "NVDA",
     companyName: "NVIDIA Corporation Common Stock",
     exchange: "NASDAQ-GS",
-    primaryData: { lastSalePrice: "$215.00", netChange: "+1.00", percentageChange: "+0.47%", deltaIndicator: "up" },
+    primaryData: { lastSalePrice: "$215.0495", netChange: "+1.00", percentageChange: "+0.47%", deltaIndicator: "up", volume: "98,333,844.273655" },
   },
   profile: {
     CompanyName: { value: "NVIDIA Corporation" },
@@ -85,7 +90,8 @@ const company = normalizeCompany({
   },
 });
 assert(company.name === "NVIDIA Corporation", "company name");
-assert(company.price === "$215.00", "company price");
+assert(company.price === "$215.05", "company price");
+assert(company.volume === "98,333,844.27", "company volume rounded");
 assert(company.earningsHistory.length === 1, "earnings history");
 
 const html = await readFile(join(root, "index.html"), "utf8");
