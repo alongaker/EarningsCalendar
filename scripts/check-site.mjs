@@ -4,8 +4,8 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage } from "../providers.js";
-import { isSymbol, normalizeCompany, roundToHundredth } from "../company.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, formatEps } from "../providers.js";
+import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -65,6 +65,63 @@ assert(merged[0].time === "after-close", "merge fills missing time");
 assert(merged[0].revenueEstimateDisplay === "$46.2B", "merge revenue");
 assert(merged[0].sources.includes("finnhub"), "merge records finnhub");
 
+const fuzzy = mergeCalls(
+  [
+    {
+      date: "2026-08-26",
+      symbol: "XYZ",
+      name: "Xyz Inc",
+      time: "after-close",
+      marketCap: 500,
+      marketCapDisplay: "$500",
+      epsForecast: "$1.00",
+      sources: ["nasdaq"],
+    },
+  ],
+  [
+    normalizeAlphaVantage({
+      reportDate: "2026-08-28",
+      symbol: "XYZ",
+      name: "XYZ INC",
+      estimate: "",
+    }),
+  ]
+);
+assert(fuzzy.length === 1, "fuzzy merge nearby Alpha Vantage date");
+assert(fuzzy[0].date === "2026-08-26", "keep richer Nasdaq date");
+assert(fuzzy[0].epsForecast === "$1.00", "keep Nasdaq EPS");
+assert(fuzzy[0].sources.includes("alphavantage"), "record Alpha Vantage source");
+assert(fuzzy[0].marketCapDisplay === "$500", "keep Nasdaq market cap display");
+assert(formatEps("None") === "" && formatEps("n/a") === "", "blank Alpha Vantage estimates");
+
+const hyphen = mergeCalls(
+  [
+    {
+      date: "2026-08-26",
+      symbol: "BRK.B",
+      name: "Berkshire Hathaway",
+      time: "after-close",
+      marketCap: 900,
+      marketCapDisplay: "$900B",
+      epsForecast: "$4.00",
+      sources: ["nasdaq"],
+    },
+  ],
+  [
+    normalizeAlphaVantage({
+      reportDate: "2026-08-31",
+      symbol: "BRK-B",
+      name: "Berkshire Hathaway Inc",
+      estimate: "None",
+    }),
+  ]
+);
+assert(hyphen.length === 1, "hyphen ticker matches dotted Nasdaq symbol");
+assert(hyphen[0].symbol === "BRK.B", "keep Nasdaq share-class ticker");
+assert(hyphen[0].date === "2026-08-26", "keep Nasdaq date across a 5-day gap");
+assert(hyphen[0].epsForecast === "$4.00", "keep Nasdaq EPS over blank Alpha Vantage estimate");
+assert(hyphen[0].marketCapDisplay === "$900B", "hyphen merge keeps cap display");
+
 const csv = parseCsv("symbol,name,reportDate,estimate\nAAPL,Apple Inc,2026-08-21,1.5");
 assert(normalizeAlphaVantage(csv[0]).symbol === "AAPL", "alpha csv normalize");
 assert(roundToHundredth("98,333,844.273655") === "98,333,844.27", "round volume");
@@ -93,6 +150,45 @@ assert(company.name === "NVIDIA Corporation", "company name");
 assert(company.price === "$215.05", "company price");
 assert(company.volume === "98,333,844.27", "company volume rounded");
 assert(company.earningsHistory.length === 1, "earnings history");
+
+const filled = await enrichSparseCalls(
+  [
+    {
+      date: "2026-08-26",
+      symbol: "NVDA",
+      name: "",
+      marketCap: 0,
+      marketCapDisplay: "—",
+    },
+  ],
+  {
+    fetchImpl: async (url) => {
+      const u = String(url);
+      if (u.includes("/info")) {
+        return {
+          ok: true,
+          json: async () => ({
+            status: { rCode: 200 },
+            data: { symbol: "NVDA", companyName: "NVIDIA Corporation", assetClass: "stocks" },
+          }),
+        };
+      }
+      if (u.includes("/summary")) {
+        return {
+          ok: true,
+          json: async () => ({
+            status: { rCode: 200 },
+            data: { summaryData: { MarketCap: { value: "4,000,000,000,000" } } },
+          }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    },
+  }
+);
+assert(filled[0].marketCap === 4000000000000, "enrich fills market cap from quote");
+assert(filled[0].name === "NVIDIA Corporation", "enrich fills company name");
+assert(filled[0].marketCapDisplay === "$4.00T", "enrich formats market cap");
 
 const html = await readFile(join(root, "index.html"), "utf8");
 assert(html.includes("Earnings Calendar"), "index has title");
@@ -153,6 +249,11 @@ try {
   const nvda = await fetch("http://127.0.0.1:3456/api/company/NVDA");
   const nvdaJson = await nvda.json();
   assert(nvda.ok && nvdaJson.symbol === "NVDA" && nvdaJson.price, "company profile API");
+  assert(Array.isArray(nvdaJson.filings) && nvdaJson.filings.length > 0, "SEC filings on company page");
+  assert(nvdaJson.cik, "SEC CIK");
+  const quote = await fetch("http://127.0.0.1:3456/api/quote/NVDA");
+  const quoteJson = await quote.json();
+  assert(quote.ok && quoteJson.marketCap > 0, "quote lite API");
 } finally {
   shutdown();
 }

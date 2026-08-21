@@ -41,7 +41,7 @@ export function normalizeRow(row, date) {
   const time = TIME_MAP[row.time] || "unspecified";
   return {
     date,
-    symbol: (row.symbol || "").trim(),
+    symbol: (row.symbol || "").trim().toUpperCase().replace(/-/g, "."),
     name: (row.name || "").trim(),
     time,
     marketCap,

@@ -1,5 +1,5 @@
 import { PROVIDERS, fetchProvider, mergeCalls } from "./providers.js";
-import { fetchNasdaqCompany, isSymbol, roundToHundredth } from "./company.js";
+import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls } from "./company.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -224,9 +224,10 @@ function renderCompany(symbol, profile) {
   const loading = profile?.loading
     ? `<p class="status">Loading quote and company profile…</p>`
     : "";
-  const error = profile?.error
-    ? `<p class="empty">Live quote unavailable. ${escapeHtml(profile.error)}</p>`
-    : "";
+  const error =
+    (profile?.error || profile?.nasdaqError)
+      ? `<p class="empty">Live quote unavailable. ${escapeHtml(profile.error || profile.nasdaqError)}</p>`
+      : "";
 
   const callCards = upcoming.length
     ? upcoming
@@ -281,7 +282,47 @@ function renderCompany(symbol, profile) {
       </section>`
     : "";
 
-  const stats = profile && !profile.loading && !profile.error
+  const filings = (profile?.filings || []).length
+    ? `<section class="filings history">
+        <h3>SEC filings</h3>
+        <p class="company-hero__meta">${profile.cik ? `CIK ${escapeHtml(profile.cik)}` : ""}${
+          profile.sic ? ` · ${escapeHtml(profile.sic)}` : ""
+        } · EDGAR</p>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Form</th>
+              <th>Filed</th>
+              <th>Period</th>
+              <th>Document</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${profile.filings
+              .map((row) => {
+                const doc = row.documentUrl
+                  ? `<a href="${escapeHtml(row.documentUrl)}" target="_blank" rel="noopener">Open</a>`
+                  : "";
+                const index = row.indexUrl
+                  ? `<a href="${escapeHtml(row.indexUrl)}" target="_blank" rel="noopener">index</a>`
+                  : "";
+                const links = [doc, index].filter(Boolean).join(" · ") || "—";
+                return `<tr>
+                  <td class="symbol">${escapeHtml(row.form)}</td>
+                  <td>${dash(row.filed)}</td>
+                  <td>${dash(row.reportDate)}</td>
+                  <td>${links}</td>
+                </tr>`;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      </section>`
+    : profile?.edgarError
+      ? `<p class="empty">SEC filings unavailable. ${escapeHtml(profile.edgarError)}</p>`
+      : "";
+
+  const stats = profile && !profile.loading && (profile.price || profile.sector)
     ? `<dl class="stat-grid">
         <div><dt>Sector</dt><dd>${dash(profile.sector)}</dd></div>
         <div><dt>Industry</dt><dd>${dash(profile.industry)}</dd></div>
@@ -319,10 +360,13 @@ function renderCompany(symbol, profile) {
     ${stats}
     ${callCards}
     ${history}
+    ${filings}
   `;
 
   els.asOf.textContent = selected ? `Next call ${longDate(selected.date)}` : symbol;
-  els.source.textContent = [profile?.exchange, "Nasdaq company data"].filter(Boolean).join(" · ");
+  els.source.textContent = [profile?.exchange, "Nasdaq", profile?.filings?.length ? "SEC EDGAR" : ""]
+    .filter(Boolean)
+    .join(" · ");
   document.title = `${symbol} — Earnings Calendar`;
 }
 
@@ -595,13 +639,27 @@ async function enrichFromKeys(base) {
   return { ...base, count: calls.length, calls };
 }
 
+async function applyCalendar(base) {
+  const merged = await enrichFromKeys(base);
+  state.snapshot = merged;
+  if (state.tab === "calendar") render();
+  else if (state.tab === "company" && state.companySymbol) {
+    showCompany(state.companySymbol, state.companyDate);
+  }
+  const filled = await enrichSparseCalls(merged.calls);
+  if (filled === merged.calls) return;
+  state.snapshot = { ...merged, calls: filled, count: filled.length };
+  if (state.tab === "calendar") render();
+  else if (state.tab === "company" && state.companySymbol) {
+    showCompany(state.companySymbol, state.companyDate);
+  }
+}
+
 async function load() {
   try {
     state.base = await loadSnapshot();
     state.base.mode = state.base.mode || "snapshot";
-    state.snapshot = await enrichFromKeys(state.base);
-    if (state.tab === "calendar") render();
-    if (state.tab === "company") showCompany(state.companySymbol, state.companyDate);
+    await applyCalendar(state.base);
   } catch (err) {
     els.asOf.textContent = "Loading live calendar…";
   }
@@ -609,9 +667,7 @@ async function load() {
   try {
     const live = await loadLive();
     state.base = live;
-    state.snapshot = await enrichFromKeys(state.base);
-    if (state.tab === "calendar") render();
-    if (state.tab === "company") showCompany(state.companySymbol, state.companyDate);
+    await applyCalendar(state.base);
   } catch (err) {
     if (!state.snapshot) throw err;
   }
@@ -680,8 +736,7 @@ els.keyCards.addEventListener("click", async (event) => {
     saveKeys();
     renderKeyCards();
     if (state.base) {
-      state.snapshot = await enrichFromKeys(state.base);
-      if (state.tab === "calendar") render();
+      await applyCalendar(state.base);
     }
     return;
   }
@@ -702,9 +757,8 @@ els.keyCards.addEventListener("click", async (event) => {
     return;
   }
   renderKeyCards();
-  state.snapshot = await enrichFromKeys(state.base);
+  await applyCalendar(state.base);
   renderKeyCards();
-  if (state.tab === "calendar") render();
 });
 
 document.addEventListener("keydown", (event) => {

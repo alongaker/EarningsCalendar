@@ -23,11 +23,12 @@ The local server serves the page and a live API:
 | `/api/earnings` | Fresh Nasdaq fetch (cached 10 minutes) |
 | `/api/earnings?live=0` | The saved `data/earnings.json` snapshot |
 | `/api/provider/:name` | `POST` JSON `{ apiKey, from, to }` for `finnhub`, `fmp`, or `alphavantage` |
-| `/api/company/:symbol` | Nasdaq quote, profile, and recent earnings surprises |
+| `/api/company/:symbol` | Nasdaq quote/profile plus SEC EDGAR filings |
+| `/api/quote/:symbol` | Light Nasdaq name + market cap lookup |
 
-Press `/` on the page to jump to search. Filter by call time or market cap, or click a day in the week strip. Click a company row to open its page (quote, profile, upcoming call, recent earnings).
+Press `/` on the page to jump to search. Filter by call time or market cap, or click a day in the week strip. Click a company row to open its page (quote, profile, upcoming call, recent earnings, and recent SEC filings from EDGAR).
 
-The **API keys** tab stores Finnhub, Financial Modeling Prep, and Alpha Vantage keys in this browser. Saved keys are used to merge extra tickers, revenue estimates, and confirmed times into the calendar. They are not written to the repo.
+The **API keys** tab stores Finnhub, Financial Modeling Prep, and Alpha Vantage keys in this browser. Saved keys are used to merge extra tickers, revenue estimates, and confirmed times into the calendar. Alpha Vantage’s calendar CSV often has no market cap and a blank EPS estimate; those rows are folded onto a nearby Nasdaq date (same ticker, within a few days) and backfilled from Nasdaq when the name is listed. OTC or foreign tickers with no Nasdaq quote can still look thin. Keys are not written to the repo.
 
 ## Publish on GitHub Pages
 

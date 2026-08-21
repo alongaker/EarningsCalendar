@@ -21,7 +21,7 @@ export const PROVIDERS = [
   {
     id: "alphavantage",
     name: "Alpha Vantage",
-    blurb: "Adds a broader upcoming earnings calendar (name + EPS estimate).",
+    blurb: "Adds more names. Empty estimates stay blank; we match nearby Nasdaq dates and fill market cap when the ticker is listed.",
     signup: "https://www.alphavantage.co/support/#api-key",
     docs: "https://www.alphavantage.co/documentation/#earnings-calendar",
     placeholder: "Alpha Vantage API key",
@@ -32,9 +32,17 @@ export function providerIds() {
   return PROVIDERS.map((p) => p.id);
 }
 
+export function canonicalSymbol(symbol) {
+  return String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
+}
+
 export function formatEps(value) {
   if (value === null || value === undefined || value === "") return "";
-  if (typeof value === "string" && value.trim().startsWith("$")) return value.trim();
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (!s || /^(n\/a|na|none|null|-|—)$/i.test(s)) return "";
+    if (s.startsWith("$") || s.startsWith("($")) return s;
+  }
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value).trim();
   const formatted = Math.abs(n).toFixed(2);
@@ -73,7 +81,7 @@ function baseCall(partial) {
   const revenueEstimate = Number(partial.revenueEstimate) || 0;
   return {
     date: partial.date || "",
-    symbol: (partial.symbol || "").trim().toUpperCase(),
+    symbol: canonicalSymbol(partial.symbol),
     name: (partial.name || "").trim(),
     time: partial.time || "unspecified",
     marketCap: Number(partial.marketCap) || 0,
@@ -162,52 +170,77 @@ function nonempty(value) {
   return value !== null && value !== undefined && String(value).trim() !== "" && value !== "—";
 }
 
-export function mergeCalls(base, extras) {
-  const map = new Map();
+function dayNum(iso) {
+  const t = Date.parse(`${iso}T00:00:00Z`);
+  return Number.isFinite(t) ? t / 86400000 : NaN;
+}
+
+function richness(call) {
+  return (
+    (call.marketCap ? 4 : 0) +
+    (nonempty(call.epsForecast) ? 3 : 0) +
+    (call.time && call.time !== "unspecified" ? 2 : 0) +
+    (nonempty(call.revenueEstimateDisplay) ? 1 : 0) +
+    (nonempty(call.name) ? 1 : 0)
+  );
+}
+
+function mergePair(prev, call) {
+  const time =
+    prev.time === "unspecified" && call.time !== "unspecified" ? call.time : prev.time;
+  const keepDate = richness(call) > richness(prev) ? call.date : prev.date;
+  return {
+    ...prev,
+    date: keepDate,
+    symbol: prev.symbol || call.symbol,
+    name: nonempty(prev.name) ? prev.name : call.name,
+    time,
+    marketCap: prev.marketCap || call.marketCap,
+    marketCapDisplay:
+      (prev.marketCap || nonempty(prev.marketCapDisplay))
+        ? prev.marketCapDisplay
+        : call.marketCapDisplay || "—",
+    epsForecast: nonempty(prev.epsForecast) ? prev.epsForecast : call.epsForecast,
+    estimateCount: prev.estimateCount || call.estimateCount,
+    fiscalQuarterEnding: nonempty(prev.fiscalQuarterEnding)
+      ? prev.fiscalQuarterEnding
+      : call.fiscalQuarterEnding,
+    lastYearEPS: nonempty(prev.lastYearEPS) ? prev.lastYearEPS : call.lastYearEPS,
+    lastYearReportDate: nonempty(prev.lastYearReportDate)
+      ? prev.lastYearReportDate
+      : call.lastYearReportDate,
+    revenueEstimate: prev.revenueEstimate || call.revenueEstimate,
+    revenueEstimateDisplay: nonempty(prev.revenueEstimateDisplay)
+      ? prev.revenueEstimateDisplay
+      : call.revenueEstimateDisplay,
+    epsActual: nonempty(prev.epsActual) ? prev.epsActual : call.epsActual,
+    sources: [...new Set([...(prev.sources || []), ...(call.sources || [])])],
+  };
+}
+
+export function mergeCalls(base, extras, { dateWindow = 6 } = {}) {
+  const bySymbol = new Map();
+
   const put = (call) => {
     if (!call.symbol || !call.date) return;
-    const key = `${call.symbol}|${call.date}`;
-    const prev = map.get(key);
-    if (!prev) {
-      map.set(key, {
-        ...call,
-        sources: [...new Set(call.sources || [])],
-      });
-      return;
-    }
-    const time =
-      prev.time === "unspecified" && call.time !== "unspecified" ? call.time : prev.time;
-    map.set(key, {
-      ...prev,
-      name: nonempty(prev.name) ? prev.name : call.name,
-      time,
-      marketCap: prev.marketCap || call.marketCap,
-      marketCapDisplay:
-        prev.marketCap || nonempty(prev.marketCapDisplay)
-          ? prev.marketCapDisplay
-          : call.marketCapDisplay || "—",
-      epsForecast: nonempty(prev.epsForecast) ? prev.epsForecast : call.epsForecast,
-      estimateCount: prev.estimateCount || call.estimateCount,
-      fiscalQuarterEnding: nonempty(prev.fiscalQuarterEnding)
-        ? prev.fiscalQuarterEnding
-        : call.fiscalQuarterEnding,
-      lastYearEPS: nonempty(prev.lastYearEPS) ? prev.lastYearEPS : call.lastYearEPS,
-      lastYearReportDate: nonempty(prev.lastYearReportDate)
-        ? prev.lastYearReportDate
-        : call.lastYearReportDate,
-      revenueEstimate: prev.revenueEstimate || call.revenueEstimate,
-      revenueEstimateDisplay: nonempty(prev.revenueEstimateDisplay)
-        ? prev.revenueEstimateDisplay
-        : call.revenueEstimateDisplay,
-      epsActual: nonempty(prev.epsActual) ? prev.epsActual : call.epsActual,
-      sources: [...new Set([...(prev.sources || []), ...(call.sources || [])])],
-    });
+    const incoming = {
+      ...call,
+      symbol: canonicalSymbol(call.symbol),
+      sources: [...new Set(call.sources || [])],
+    };
+    if (!incoming.symbol) return;
+    const list = bySymbol.get(incoming.symbol) || [];
+    const d = dayNum(incoming.date);
+    const idx = list.findIndex((prev) => Math.abs(dayNum(prev.date) - d) <= dateWindow);
+    if (idx === -1) list.push(incoming);
+    else list[idx] = mergePair(list[idx], incoming);
+    bySymbol.set(incoming.symbol, list);
   };
 
   for (const call of base) put({ ...call, sources: call.sources || ["nasdaq"] });
   for (const call of extras) put(call);
 
-  return [...map.values()].sort((a, b) => {
+  return [...bySymbol.values()].flat().sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     if (b.marketCap !== a.marketCap) return b.marketCap - a.marketCap;
     return a.symbol.localeCompare(b.symbol);

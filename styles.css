@@ -451,7 +451,8 @@ input[type="search"]:focus {
 }
 
 .upcoming-call h3,
-.history h3 {
+.history h3,
+.filings h3 {
   margin: 0 0 10px;
   font-family: var(--serif);
   font-size: 22px;

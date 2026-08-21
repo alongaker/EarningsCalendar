@@ -6,7 +6,11 @@ import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { fetchUpcoming } from "./scripts/earnings-lib.mjs";
 import { fetchProvider, providerIds } from "./providers.js";
-import { fetchNasdaqCompany, isSymbol } from "./company.js";
+import {
+  fetchCompanyBundle,
+  fetchNasdaqQuoteLite,
+  isSymbol,
+} from "./company.js";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const PORT = Number(process.env.PORT || 3000);
@@ -141,11 +145,31 @@ const server = createServer(async (req, res) => {
         sendJson(res, 200, hit.data);
         return;
       }
-      const data = await fetchNasdaqCompany(symbol);
+      const data = await fetchCompanyBundle(symbol);
       companyCache.set(symbol, { at: now, data });
       sendJson(res, 200, data);
     } catch (err) {
       sendJson(res, 502, { error: err.message || "Company lookup failed" });
+    }
+    return;
+  }
+
+  const quoteMatch = url.pathname.match(/^\/api\/quote\/([^/]+)$/);
+  if (quoteMatch && req.method === "GET") {
+    const symbol = decodeURIComponent(quoteMatch[1] || "").toUpperCase();
+    if (!isSymbol(symbol)) {
+      sendJson(res, 400, { error: "Invalid symbol" });
+      return;
+    }
+    try {
+      const data = await fetchNasdaqQuoteLite(symbol);
+      if (!data) {
+        sendJson(res, 404, { error: "Quote not found" });
+        return;
+      }
+      sendJson(res, 200, data);
+    } catch (err) {
+      sendJson(res, 502, { error: err.message || "Quote lookup failed" });
     }
     return;
   }
@@ -186,4 +210,5 @@ server.listen(PORT, HOST, () => {
   console.log("Live API:  GET /api/earnings");
   console.log("Provider: POST /api/provider/{finnhub|fmp|alphavantage}");
   console.log("Company:  GET  /api/company/NVDA");
+  console.log("Quote:    GET  /api/quote/NVDA");
 });

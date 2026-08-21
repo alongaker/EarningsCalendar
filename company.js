@@ -99,7 +99,7 @@ export function normalizeCompany({ info, summary, profile, surprises } = {}) {
 }
 
 export async function fetchNasdaqCompany(symbol, { fetchImpl = fetch } = {}) {
-  const ticker = String(symbol || "").trim().toUpperCase();
+  const ticker = String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
   if (!isSymbol(ticker)) throw new Error("Invalid symbol");
 
   const classes = ["stocks", "etf"];
@@ -131,4 +131,245 @@ export async function fetchNasdaqCompany(symbol, { fetchImpl = fetch } = {}) {
   ]);
 
   return normalizeCompany({ info, summary, profile, surprises });
+}
+
+function parseCapNumber(value) {
+  if (!value || value === "N/A" || value === "—") return 0;
+  const n = Number(String(value).replace(/[$,]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatCapNumber(n) {
+  if (!n) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+  if (abs >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
+  return `$${Math.round(n).toLocaleString("en-US")}`;
+}
+
+const quoteCache = new Map();
+const tickerMapCache = { at: 0, map: null };
+const SEC_UA =
+  (typeof process !== "undefined" && process.env && process.env.SEC_USER_AGENT) ||
+  "Earnings Calendar alongaker21@gmail.com";
+const EDGAR_FORMS = new Set([
+  "8-K",
+  "8-K/A",
+  "10-Q",
+  "10-Q/A",
+  "10-K",
+  "10-K/A",
+  "6-K",
+  "20-F",
+  "20-F/A",
+  "40-F",
+  "DEF 14A",
+  "S-1",
+]);
+
+export async function fetchNasdaqQuoteLite(symbol, { fetchImpl = fetch } = {}) {
+  const ticker = String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
+  if (!isSymbol(ticker)) return null;
+  const hit = quoteCache.get(ticker);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.data;
+
+  let info = null;
+  for (const assetclass of ["stocks", "etf"]) {
+    try {
+      info = await nasdaqJson(
+        `/api/quote/${encodeURIComponent(ticker)}/info?assetclass=${assetclass}`,
+        { fetchImpl }
+      );
+      break;
+    } catch {
+      info = null;
+    }
+  }
+  if (!info) {
+    quoteCache.set(ticker, { at: Date.now(), data: null });
+    return null;
+  }
+  let summary = null;
+  try {
+    summary = await nasdaqJson(
+      `/api/quote/${encodeURIComponent(ticker)}/summary?assetclass=${(info.assetClass || "stocks").toLowerCase()}`,
+      { fetchImpl }
+    );
+  } catch {
+    summary = null;
+  }
+  const capRaw = val(summary?.summaryData?.MarketCap);
+  const marketCap = parseCapNumber(capRaw);
+  const data = {
+    symbol: ticker,
+    name: (info.companyName || "").replace(/\s+Common Stock$/i, "").trim(),
+    marketCap,
+    marketCapDisplay: formatCapNumber(marketCap),
+  };
+  quoteCache.set(ticker, { at: Date.now(), data });
+  return data;
+}
+
+async function mapPool(items, width, worker) {
+  const queue = [...items];
+  const runners = Array.from({ length: Math.min(width, queue.length) }, async () => {
+    while (queue.length) {
+      const item = queue.shift();
+      await worker(item);
+    }
+  });
+  await Promise.all(runners);
+}
+
+export async function enrichSparseCalls(calls, { fetchImpl = fetch, limit = 80 } = {}) {
+  const missing = [];
+  const seen = new Set();
+  for (const call of calls) {
+    if (seen.has(call.symbol)) continue;
+    if (call.marketCap && call.name) continue;
+    seen.add(call.symbol);
+    missing.push(call.symbol);
+    if (missing.length >= limit) break;
+  }
+  if (!missing.length) return calls;
+
+  const quotes = new Map();
+  await mapPool(missing, 4, async (symbol) => {
+    try {
+      if (typeof window !== "undefined") {
+        const res = await fetch(`/api/quote/${encodeURIComponent(symbol)}`, { cache: "no-store" });
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const payload = await res.json();
+          if (res.ok && payload?.symbol) {
+            quotes.set(symbol, payload);
+            return;
+          }
+        }
+      }
+    } catch {
+      // Fall through to a direct Nasdaq lookup.
+    }
+    const quote = await fetchNasdaqQuoteLite(symbol, { fetchImpl }).catch(() => null);
+    if (quote) quotes.set(symbol, quote);
+  });
+
+  return calls.map((call) => {
+    const quote = quotes.get(call.symbol);
+    if (!quote) return call;
+    const marketCap = call.marketCap || quote.marketCap || 0;
+    return {
+      ...call,
+      name: call.name || quote.name || "",
+      marketCap,
+      marketCapDisplay: call.marketCap ? call.marketCapDisplay : quote.marketCapDisplay || "—",
+    };
+  });
+}
+
+function padCik(value) {
+  return String(value).replace(/\D/g, "").padStart(10, "0");
+}
+
+function tickerVariants(symbol) {
+  const s = String(symbol || "").toUpperCase();
+  return [...new Set([s, s.replace(".", "-"), s.replace("-", ".")])];
+}
+
+async function loadTickerMap({ fetchImpl = fetch } = {}) {
+  if (tickerMapCache.map && Date.now() - tickerMapCache.at < 24 * 60 * 60 * 1000) {
+    return tickerMapCache.map;
+  }
+  const res = await fetchImpl("https://www.sec.gov/files/company_tickers.json", {
+    headers: { "User-Agent": SEC_UA, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`SEC ticker map HTTP ${res.status}`);
+  const payload = await res.json();
+  const map = new Map();
+  for (const row of Object.values(payload || {})) {
+    if (row?.ticker) map.set(String(row.ticker).toUpperCase(), row);
+  }
+  tickerMapCache.at = Date.now();
+  tickerMapCache.map = map;
+  return map;
+}
+
+function filingLinks(cik, accession, primary) {
+  const cikNum = String(Number(padCik(cik)));
+  const acc = String(accession || "").replace(/-/g, "");
+  const file = primary || "";
+  return {
+    document: file ? `https://www.sec.gov/Archives/edgar/data/${cikNum}/${acc}/${file}` : "",
+    index: `https://www.sec.gov/Archives/edgar/data/${cikNum}/${acc}/`,
+  };
+}
+
+export async function fetchEdgarFilings(symbol, { fetchImpl = fetch, limit = 12 } = {}) {
+  const ticker = String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
+  if (!isSymbol(ticker)) throw new Error("Invalid symbol");
+  const map = await loadTickerMap({ fetchImpl });
+  let row = null;
+  for (const key of tickerVariants(ticker)) {
+    if (map.has(key)) {
+      row = map.get(key);
+      break;
+    }
+  }
+  if (!row) throw new Error("No SEC filings mapped for this ticker");
+
+  const cik = padCik(row.cik_str);
+  const res = await fetchImpl(`https://data.sec.gov/submissions/CIK${cik}.json`, {
+    headers: { "User-Agent": SEC_UA, Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error(`SEC submissions HTTP ${res.status}`);
+  const payload = await res.json();
+  const recent = payload?.filings?.recent || {};
+  const forms = recent.form || [];
+  const filings = [];
+  for (let i = 0; i < forms.length && filings.length < limit; i++) {
+    const form = forms[i];
+    if (!EDGAR_FORMS.has(form)) continue;
+    const accession = recent.accessionNumber?.[i] || "";
+    const primary = recent.primaryDocument?.[i] || "";
+    const links = filingLinks(cik, accession, primary);
+    filings.push({
+      form,
+      filed: recent.filingDate?.[i] || "",
+      reportDate: recent.reportDate?.[i] || "",
+      description: recent.primaryDocDescription?.[i] || "",
+      accession,
+      documentUrl: links.document,
+      indexUrl: links.index,
+    });
+  }
+  return {
+    cik,
+    name: payload.name || row.title || "",
+    sic: payload.sicDescription || "",
+    filings,
+  };
+}
+
+export async function fetchCompanyBundle(symbol, { fetchImpl = fetch } = {}) {
+  const ticker = String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
+  const [quote, edgar] = await Promise.allSettled([
+    fetchNasdaqCompany(ticker, { fetchImpl }),
+    fetchEdgarFilings(ticker, { fetchImpl }),
+  ]);
+  const profile = quote.status === "fulfilled" ? quote.value : { symbol: ticker };
+  const filings =
+    edgar.status === "fulfilled"
+      ? edgar.value
+      : { cik: "", name: "", sic: "", filings: [] };
+  return {
+    ...profile,
+    symbol: profile.symbol || ticker,
+    name: profile.name || filings.name || "",
+    cik: filings.cik || "",
+    sic: filings.sic || "",
+    filings: filings.filings || [],
+    nasdaqError: quote.status === "rejected" ? quote.reason?.message : "",
+    edgarError: edgar.status === "rejected" ? edgar.reason?.message : "",
+  };
 }
