@@ -13,6 +13,8 @@ npm run fetch    # pull the next 21 days into data/earnings.json
 npm start        # local server at http://localhost:3000
 ```
 
+Open **http://localhost:3000** in a normal browser. If a Cloud Agent is running this, use Cursor Desktop’s Agents Window (plug icon in the editor) so port 3000 is forwarded to your machine — skip the remote desktop viewer.
+
 The local server serves the page and a live API:
 
 | URL | What it does |
