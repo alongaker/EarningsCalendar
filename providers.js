@@ -1,0 +1,310 @@
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+export const PROVIDERS = [
+  {
+    id: "finnhub",
+    name: "Finnhub",
+    blurb: "Adds more tickers plus EPS and revenue estimates.",
+    signup: "https://finnhub.io/register",
+    docs: "https://finnhub.io/docs/api/earnings-calendar",
+    placeholder: "Finnhub API key",
+  },
+  {
+    id: "fmp",
+    name: "Financial Modeling Prep",
+    blurb: "Adds revenue figures, extra names, and confirmed report times.",
+    signup: "https://site.financialmodelingprep.com/register",
+    docs: "https://site.financialmodelingprep.com/developer/docs#earnings-calendar",
+    placeholder: "FMP API key",
+  },
+  {
+    id: "alphavantage",
+    name: "Alpha Vantage",
+    blurb: "Adds a broader upcoming earnings calendar (name + EPS estimate).",
+    signup: "https://www.alphavantage.co/support/#api-key",
+    docs: "https://www.alphavantage.co/documentation/#earnings-calendar",
+    placeholder: "Alpha Vantage API key",
+  },
+];
+
+export function providerIds() {
+  return PROVIDERS.map((p) => p.id);
+}
+
+export function formatEps(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "string" && value.trim().startsWith("$")) return value.trim();
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value).trim();
+  const formatted = Math.abs(n).toFixed(2);
+  return n < 0 ? `($${formatted})` : `$${formatted}`;
+}
+
+export function formatRevenue(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n === 0) return "";
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(0)}M`;
+  return `${sign}$${Math.round(abs).toLocaleString("en-US")}`;
+}
+
+export function mapTime(value) {
+  if (!value && value !== 0) return "unspecified";
+  const s = String(value).trim().toLowerCase();
+  if (!s || s === "n/a" || s === "time-not-supplied") return "unspecified";
+  if (s.includes("bmo") || s.includes("pre-market") || s.includes("before")) return "before-open";
+  if (s.includes("amc") || s.includes("after") || s.includes("post")) return "after-close";
+  if (s.includes("dmh") || s.includes("during")) return "during-session";
+  const clock = s.match(/^(\d{1,2}):(\d{2})/);
+  if (clock) {
+    const hour = Number(clock[1]);
+    if (hour < 10) return "before-open";
+    if (hour >= 16) return "after-close";
+    return "during-session";
+  }
+  return "unspecified";
+}
+
+function baseCall(partial) {
+  const revenueEstimate = Number(partial.revenueEstimate) || 0;
+  return {
+    date: partial.date || "",
+    symbol: (partial.symbol || "").trim().toUpperCase(),
+    name: (partial.name || "").trim(),
+    time: partial.time || "unspecified",
+    marketCap: Number(partial.marketCap) || 0,
+    marketCapDisplay: partial.marketCapDisplay || (partial.marketCap ? "" : "—"),
+    epsForecast: partial.epsForecast || "",
+    estimateCount: Number(partial.estimateCount) || 0,
+    fiscalQuarterEnding: partial.fiscalQuarterEnding || "",
+    lastYearEPS: partial.lastYearEPS || "",
+    lastYearReportDate: partial.lastYearReportDate || "",
+    revenueEstimate,
+    revenueEstimateDisplay: partial.revenueEstimateDisplay || formatRevenue(revenueEstimate),
+    epsActual: partial.epsActual || "",
+    sources: partial.sources || [],
+  };
+}
+
+export function normalizeFinnhub(row) {
+  return baseCall({
+    date: row.date,
+    symbol: row.symbol,
+    time: mapTime(row.hour),
+    epsForecast: formatEps(row.epsEstimate),
+    epsActual: formatEps(row.epsActual),
+    revenueEstimate: row.revenueEstimate,
+    fiscalQuarterEnding: row.quarter && row.year ? `Q${row.quarter} ${row.year}` : "",
+    sources: ["finnhub"],
+  });
+}
+
+export function normalizeFmp(row) {
+  return baseCall({
+    date: row.date,
+    symbol: row.symbol,
+    name: row.name || row.companyName || "",
+    time: mapTime(row.time),
+    epsForecast: formatEps(row.epsEstimated ?? row.epsEstimate),
+    epsActual: formatEps(row.eps),
+    revenueEstimate: row.revenueEstimated ?? row.revenueEstimate,
+    fiscalQuarterEnding: row.fiscalDateEnding || "",
+    sources: ["fmp"],
+  });
+}
+
+export function parseCsv(text) {
+  const lines = String(text)
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean);
+  if (!lines.length) return [];
+  const headers = lines[0].split(",").map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const cols = [];
+    let cur = "";
+    let inQuotes = false;
+    for (const ch of line) {
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (ch === "," && !inQuotes) {
+        cols.push(cur);
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    cols.push(cur);
+    const row = {};
+    headers.forEach((h, i) => {
+      row[h] = (cols[i] || "").trim();
+    });
+    return row;
+  });
+}
+
+export function normalizeAlphaVantage(row) {
+  return baseCall({
+    date: row.reportDate,
+    symbol: row.symbol,
+    name: row.name,
+    epsForecast: formatEps(row.estimate),
+    fiscalQuarterEnding: row.fiscalDateEnding || "",
+    sources: ["alphavantage"],
+  });
+}
+
+function nonempty(value) {
+  return value !== null && value !== undefined && String(value).trim() !== "" && value !== "—";
+}
+
+export function mergeCalls(base, extras) {
+  const map = new Map();
+  const put = (call) => {
+    if (!call.symbol || !call.date) return;
+    const key = `${call.symbol}|${call.date}`;
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, {
+        ...call,
+        sources: [...new Set(call.sources || [])],
+      });
+      return;
+    }
+    const time =
+      prev.time === "unspecified" && call.time !== "unspecified" ? call.time : prev.time;
+    map.set(key, {
+      ...prev,
+      name: nonempty(prev.name) ? prev.name : call.name,
+      time,
+      marketCap: prev.marketCap || call.marketCap,
+      marketCapDisplay:
+        prev.marketCap || nonempty(prev.marketCapDisplay)
+          ? prev.marketCapDisplay
+          : call.marketCapDisplay || "—",
+      epsForecast: nonempty(prev.epsForecast) ? prev.epsForecast : call.epsForecast,
+      estimateCount: prev.estimateCount || call.estimateCount,
+      fiscalQuarterEnding: nonempty(prev.fiscalQuarterEnding)
+        ? prev.fiscalQuarterEnding
+        : call.fiscalQuarterEnding,
+      lastYearEPS: nonempty(prev.lastYearEPS) ? prev.lastYearEPS : call.lastYearEPS,
+      lastYearReportDate: nonempty(prev.lastYearReportDate)
+        ? prev.lastYearReportDate
+        : call.lastYearReportDate,
+      revenueEstimate: prev.revenueEstimate || call.revenueEstimate,
+      revenueEstimateDisplay: nonempty(prev.revenueEstimateDisplay)
+        ? prev.revenueEstimateDisplay
+        : call.revenueEstimateDisplay,
+      epsActual: nonempty(prev.epsActual) ? prev.epsActual : call.epsActual,
+      sources: [...new Set([...(prev.sources || []), ...(call.sources || [])])],
+    });
+  };
+
+  for (const call of base) put({ ...call, sources: call.sources || ["nasdaq"] });
+  for (const call of extras) put(call);
+
+  return [...map.values()].sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    if (b.marketCap !== a.marketCap) return b.marketCap - a.marketCap;
+    return a.symbol.localeCompare(b.symbol);
+  });
+}
+
+function providerError(payload, status) {
+  if (!payload) return `HTTP ${status}`;
+  if (typeof payload === "string") {
+    const cut = payload.slice(0, 180);
+    if (/invalid|error|note|premium/i.test(cut)) return cut;
+    return `HTTP ${status}`;
+  }
+  return (
+    payload.error ||
+    payload.Error ||
+    payload["Error Message"] ||
+    payload.Note ||
+    payload.Information ||
+    `HTTP ${status}`
+  );
+}
+
+async function fetchJson(url, { fetchImpl = fetch } = {}) {
+  const res = await fetchImpl(url, {
+    headers: { "User-Agent": UA, Accept: "application/json,text/csv,text/plain,*/*" },
+  });
+  const text = await res.text();
+  let payload = text;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = text;
+  }
+  if (!res.ok) {
+    throw new Error(providerError(payload, res.status));
+  }
+  return payload;
+}
+
+export async function fetchProvider(id, apiKey, { from, to, fetchImpl = fetch } = {}) {
+  const key = String(apiKey || "").trim();
+  if (!key) throw new Error("API key required");
+
+  if (id === "finnhub") {
+    const url = new URL("https://finnhub.io/api/v1/calendar/earnings");
+    url.searchParams.set("from", from);
+    url.searchParams.set("to", to);
+    url.searchParams.set("token", key);
+    const payload = await fetchJson(url, { fetchImpl });
+    const rows = payload?.earningsCalendar || [];
+    return rows.map(normalizeFinnhub).filter((c) => c.symbol && c.date);
+  }
+
+  if (id === "fmp") {
+    const url = new URL("https://financialmodelingprep.com/stable/earnings-calendar");
+    url.searchParams.set("from", from);
+    url.searchParams.set("to", to);
+    url.searchParams.set("apikey", key);
+    let payload;
+    try {
+      payload = await fetchJson(url, { fetchImpl });
+    } catch {
+      const fallback = new URL("https://financialmodelingprep.com/api/v3/earning_calendar");
+      fallback.searchParams.set("from", from);
+      fallback.searchParams.set("to", to);
+      fallback.searchParams.set("apikey", key);
+      payload = await fetchJson(fallback, { fetchImpl });
+    }
+    const rows = Array.isArray(payload) ? payload : [];
+    return rows.map(normalizeFmp).filter((c) => c.symbol && c.date);
+  }
+
+  if (id === "alphavantage") {
+    const url = new URL("https://www.alphavantage.co/query");
+    url.searchParams.set("function", "EARNINGS_CALENDAR");
+    url.searchParams.set("horizon", "3month");
+    url.searchParams.set("apikey", key);
+    const res = await fetchImpl(url, {
+      headers: { "User-Agent": UA, Accept: "text/csv,application/json,text/plain,*/*" },
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(providerError(text, res.status));
+    if (/[{[]/.test(text.trim()[0] || "")) {
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw new Error("Alpha Vantage returned an unexpected response");
+      }
+      throw new Error(providerError(payload, res.status));
+    }
+    const rows = parseCsv(text);
+    return rows
+      .map(normalizeAlphaVantage)
+      .filter((c) => c.symbol && c.date && c.date >= from && c.date <= to);
+  }
+
+  throw new Error(`Unknown provider: ${id}`);
+}

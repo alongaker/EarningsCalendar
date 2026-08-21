@@ -22,9 +22,11 @@ The local server serves the page and a live API:
 | `/` | The Earnings Calendar UI |
 | `/api/earnings` | Fresh Nasdaq fetch (cached 10 minutes) |
 | `/api/earnings?live=0` | The saved `data/earnings.json` snapshot |
-| `/api/health` | Server ping |
+| `/api/provider/:name` | `POST` JSON `{ apiKey, from, to }` for `finnhub`, `fmp`, or `alphavantage` |
 
 Press `/` on the page to jump to search. Filter by call time or market cap, or click a day in the week strip.
+
+The **API keys** tab stores Finnhub, Financial Modeling Prep, and Alpha Vantage keys in this browser. Saved keys are used to merge extra tickers, revenue estimates, and confirmed times into the calendar. They are not written to the repo.
 
 ## Publish on GitHub Pages
 
@@ -41,6 +43,7 @@ On GitHub Pages there is no Node server, so the page reads the snapshot file. A 
 ```
 index.html                 # page
 styles.css / app.js        # UI
+providers.js               # extra API key providers
 server.js                  # local static + API server
 scripts/fetch-earnings.mjs # writes data/earnings.json
 scripts/earnings-lib.mjs   # Nasdaq fetch + cleanup

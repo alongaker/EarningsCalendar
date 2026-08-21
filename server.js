@@ -5,6 +5,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { fetchUpcoming } from "./scripts/earnings-lib.mjs";
+import { fetchProvider, providerIds } from "./providers.js";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const PORT = Number(process.env.PORT || 3000);
@@ -24,6 +25,24 @@ const MIME = {
 
 let cache = { at: 0, data: null };
 const CACHE_MS = 10 * 60 * 1000;
+
+async function readJson(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  if (!raw) return {};
+  return JSON.parse(raw);
+}
+
+function apiKeyFrom(req, body) {
+  return (
+    req.headers["x-api-key"] ||
+    req.headers["authorization"]?.replace(/^Bearer\s+/i, "") ||
+    body.apiKey ||
+    body.key ||
+    ""
+  );
+}
 
 function sendJson(res, status, body) {
   const json = JSON.stringify(body);
@@ -106,11 +125,39 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  const providerMatch = url.pathname.match(/^\/api\/provider\/([a-z]+)$/);
+  if (providerMatch && req.method === "POST") {
+    const id = providerMatch[1];
+    if (!providerIds().includes(id)) {
+      sendJson(res, 404, { error: `Unknown provider: ${id}` });
+      return;
+    }
+    try {
+      const body = await readJson(req);
+      const apiKey = apiKeyFrom(req, body);
+      if (!String(apiKey).trim()) {
+        sendJson(res, 400, { error: "API key required" });
+        return;
+      }
+      const from = body.from || url.searchParams.get("from");
+      const to = body.to || url.searchParams.get("to");
+      if (!from || !to) {
+        sendJson(res, 400, { error: "from and to dates required" });
+        return;
+      }
+      const calls = await fetchProvider(id, apiKey, { from, to });
+      sendJson(res, 200, { provider: id, count: calls.length, calls });
+    } catch (err) {
+      sendJson(res, 502, { error: err.message || "Provider request failed" });
+    }
+    return;
+  }
+
   serveStatic(req, res);
 });
 
 server.listen(PORT, HOST, () => {
   console.log(`Earnings Calendar running at http://localhost:${PORT}`);
   console.log("Live API:  GET /api/earnings");
-  console.log("Snapshot:  GET /api/earnings?live=0");
+  console.log("Provider: POST /api/provider/{finnhub|fmp|alphavantage}");
 });

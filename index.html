@@ -28,40 +28,60 @@
       </div>
     </header>
 
-    <section class="toolbar" aria-label="Filters">
-      <label class="search">
-        <span class="search__label">Search</span>
-        <input
-          id="q"
-          type="search"
-          placeholder="Ticker or company — press /"
-          autocomplete="off"
-          spellcheck="false"
-        />
-      </label>
-      <div class="filters" role="group" aria-label="Call time">
-        <button class="chip is-on" data-time="all" type="button">All times</button>
-        <button class="chip" data-time="before-open" type="button">Before open</button>
-        <button class="chip" data-time="after-close" type="button">After close</button>
-      </div>
-      <div class="filters" role="group" aria-label="Market cap">
-        <button class="chip is-on" data-cap="0" type="button">Any size</button>
-        <button class="chip" data-cap="1000000000" type="button">$1B+</button>
-        <button class="chip" data-cap="10000000000" type="button">$10B+</button>
-        <button class="chip" data-cap="100000000000" type="button">$100B+</button>
-      </div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button class="tab is-on" id="tab-calendar" data-tab="calendar" type="button" role="tab" aria-selected="true">
+        Calendar
+      </button>
+      <button class="tab" id="tab-keys" data-tab="keys" type="button" role="tab" aria-selected="false">
+        API keys
+      </button>
+    </nav>
+
+    <div id="view-calendar">
+      <section class="toolbar" aria-label="Filters">
+        <label class="search">
+          <span class="search__label">Search</span>
+          <input
+            id="q"
+            type="search"
+            placeholder="Ticker or company — press /"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </label>
+        <div class="filters" role="group" aria-label="Call time">
+          <button class="chip is-on" data-time="all" type="button">All times</button>
+          <button class="chip" data-time="before-open" type="button">Before open</button>
+          <button class="chip" data-time="after-close" type="button">After close</button>
+        </div>
+        <div class="filters" role="group" aria-label="Market cap">
+          <button class="chip is-on" data-cap="0" type="button">Any size</button>
+          <button class="chip" data-cap="1000000000" type="button">$1B+</button>
+          <button class="chip" data-cap="10000000000" type="button">$10B+</button>
+          <button class="chip" data-cap="100000000000" type="button">$100B+</button>
+        </div>
+      </section>
+
+      <nav id="week" class="week" aria-label="Days with earnings"></nav>
+
+      <main id="board" class="board">
+        <p class="status">Fetching the next few weeks of calls…</p>
+      </main>
+    </div>
+
+    <section id="view-keys" class="keys" hidden>
+      <p class="keys-lede">
+        Add keys from extra data providers to pull more earnings-call coverage
+        (extra tickers, revenue estimates, confirmed times). Keys are saved in
+        this browser only — they are not committed to GitHub.
+      </p>
+      <div id="key-cards" class="key-grid"></div>
     </section>
-
-    <nav id="week" class="week" aria-label="Days with earnings"></nav>
-
-    <main id="board" class="board">
-      <p class="status">Fetching the next few weeks of calls…</p>
-    </main>
 
     <footer class="colophon">
       <p>
         Built for local preview with <code>npm start</code>, then GitHub Pages.
-        Figures come from Nasdaq’s public earnings calendar and are not investment advice.
+        Figures come from Nasdaq and any keys you add, and are not investment advice.
       </p>
     </footer>
 
