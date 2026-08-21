@@ -1,4 +1,5 @@
 import { PROVIDERS, fetchProvider, mergeCalls } from "./providers.js";
+import { fetchNasdaqCompany, isSymbol } from "./company.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -26,6 +27,9 @@ const state = {
   tab: "calendar",
   keys: loadKeys(),
   statuses: {},
+  companySymbol: "",
+  companyDate: "",
+  companyCache: {},
 };
 
 const els = {
@@ -36,6 +40,7 @@ const els = {
   q: document.querySelector("#q"),
   viewCalendar: document.querySelector("#view-calendar"),
   viewKeys: document.querySelector("#view-keys"),
+  viewCompany: document.querySelector("#view-company"),
   keyCards: document.querySelector("#key-cards"),
 };
 
@@ -125,29 +130,239 @@ function sourceNames(snap) {
   return [...ids].map((id) => SOURCE_LABEL[id] || id);
 }
 
-function setTab(tab) {
+function setView(tab, opts = {}) {
   state.tab = tab;
-  const isCalendar = tab === "calendar";
-  els.viewCalendar.hidden = !isCalendar;
-  els.viewKeys.hidden = isCalendar;
+  state.companySymbol = opts.symbol || "";
+  state.companyDate = opts.date || "";
+  els.viewCalendar.hidden = tab !== "calendar";
+  els.viewKeys.hidden = tab !== "keys";
+  els.viewCompany.hidden = tab !== "company";
   document.querySelectorAll(".tab").forEach((btn) => {
-    const on = btn.dataset.tab === tab;
+    const on = btn.dataset.tab === (tab === "company" ? "calendar" : tab);
     btn.classList.toggle("is-on", on);
     btn.setAttribute("aria-selected", on ? "true" : "false");
   });
   const keysTab = document.querySelector("#tab-keys");
   const n = connectedCount();
   keysTab.textContent = n ? `API keys · ${n}` : "API keys";
+  if (opts.updateHash !== false) {
+    let hash = "#calendar";
+    if (tab === "keys") hash = "#keys";
+    if (tab === "company" && state.companySymbol) {
+      hash = state.companyDate
+        ? `#company/${state.companySymbol}/${state.companyDate}`
+        : `#company/${state.companySymbol}`;
+    }
+    if (location.hash !== hash) history.pushState(null, "", hash);
+  }
   if (tab === "keys") {
     els.asOf.textContent = n
       ? `${n} extra provider${n === 1 ? "" : "s"} connected`
       : "No extra providers yet";
     els.source.textContent = "Keys stay in this browser";
     renderKeyCards();
+  } else if (tab === "company" && state.companySymbol) {
+    showCompany(state.companySymbol, state.companyDate);
   } else if (state.snapshot) {
     render();
   }
-  history.replaceState(null, "", tab === "keys" ? "#keys" : "#calendar");
+}
+
+function dash(value) {
+  return value !== null && value !== undefined && String(value).trim() !== ""
+    ? escapeHtml(value)
+    : "—";
+}
+
+function formatCapLabel(value) {
+  if (!value) return "—";
+  const n = Number(String(value).replace(/[$,]/g, ""));
+  if (Number.isFinite(n) && n > 0) {
+    if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+    if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
+  }
+  return String(value);
+}
+
+function callsForSymbol(symbol) {
+  return (state.snapshot?.calls || []).filter((call) => call.symbol === symbol);
+}
+
+async function loadCompanyProfile(symbol) {
+  try {
+    const res = await fetch(`/api/company/${encodeURIComponent(symbol)}`, { cache: "no-store" });
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const payload = await res.json();
+      if (res.ok && payload.symbol) return payload;
+      if (res.status !== 404) throw new Error(payload.error || `company ${res.status}`);
+    }
+  } catch (err) {
+    const msg = err.message || "";
+    if (msg && !/Failed to fetch|NetworkError|Unexpected token|JSON/i.test(msg)) {
+      throw err;
+    }
+  }
+  return fetchNasdaqCompany(symbol);
+}
+
+function renderCompany(symbol, profile) {
+  const upcoming = callsForSymbol(symbol);
+  const selected = upcoming.find((c) => c.date === state.companyDate) || upcoming[0];
+  const name = profile?.name || selected?.name || symbol;
+  const dir = profile?.direction === "down" ? "down" : profile?.direction === "up" ? "up" : "";
+  const chg = [profile?.netChange, profile?.percentageChange].filter(Boolean).join("  ");
+  const websiteUrl = /^https?:\/\//i.test(profile?.website || "") ? profile.website : "";
+  const website = websiteUrl
+    ? `<p><a href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener">${escapeHtml(websiteUrl.replace(/^https?:\/\//, ""))}</a></p>`
+    : "";
+  const loading = profile?.loading
+    ? `<p class="status">Loading quote and company profile…</p>`
+    : "";
+  const error = profile?.error
+    ? `<p class="empty">Live quote unavailable. ${escapeHtml(profile.error)}</p>`
+    : "";
+
+  const callCards = upcoming.length
+    ? upcoming
+        .map((call) => {
+          const extras = (call.sources || []).filter((s) => s !== "nasdaq");
+          const tags = extras
+            .map((s) => `<span class="tag">${escapeHtml(SOURCE_LABEL[s] || s)}</span>`)
+            .join("");
+          return `<article class="upcoming-call">
+            <h3>${call === selected ? "This call" : "Also on the calendar"}</h3>
+            <p><span class="time-badge ${call.time}">${TIME_LABEL[call.time]}</span> · ${longDate(call.date)}${tags}</p>
+            <dl class="stat-grid">
+              <div><dt>EPS est.</dt><dd>${dash(call.epsForecast)}</dd></div>
+              <div><dt>Rev est.</dt><dd>${dash(call.revenueEstimateDisplay)}</dd></div>
+              <div><dt>Quarter</dt><dd>${dash(call.fiscalQuarterEnding)}</dd></div>
+              <div><dt>Last year EPS</dt><dd>${dash(call.lastYearEPS)}</dd></div>
+              <div><dt># estimates</dt><dd>${dash(call.estimateCount || "")}</dd></div>
+              <div><dt>Market cap</dt><dd>${dash(call.marketCapDisplay)}</dd></div>
+            </dl>
+          </article>`;
+        })
+        .join("")
+    : `<p class="empty">No upcoming call for this ticker is on the current calendar.</p>`;
+
+  const history = (profile?.earningsHistory || []).length
+    ? `<section class="history">
+        <h3>Recent earnings</h3>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Quarter</th>
+              <th>Reported</th>
+              <th>EPS</th>
+              <th>Est.</th>
+              <th>Surprise</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${profile.earningsHistory
+              .map(
+                (row) => `<tr>
+                  <td>${dash(row.fiscalQtrEnd)}</td>
+                  <td>${dash(row.dateReported)}</td>
+                  <td class="num">${dash(row.eps)}</td>
+                  <td class="num">${dash(row.consensus)}</td>
+                  <td class="num">${row.surprise === "" || row.surprise === null ? "—" : `${escapeHtml(row.surprise)}%`}</td>
+                </tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </section>`
+    : "";
+
+  const stats = profile && !profile.loading && !profile.error
+    ? `<dl class="stat-grid">
+        <div><dt>Sector</dt><dd>${dash(profile.sector)}</dd></div>
+        <div><dt>Industry</dt><dd>${dash(profile.industry)}</dd></div>
+        <div><dt>Exchange</dt><dd>${dash(profile.exchange)}</dd></div>
+        <div><dt>Market cap</dt><dd>${dash(formatCapLabel(profile.marketCap) === "—" ? selected?.marketCapDisplay : formatCapLabel(profile.marketCap))}</dd></div>
+        <div><dt>52-week</dt><dd>${dash(profile.week52)}</dd></div>
+        <div><dt>Day range</dt><dd>${dash(profile.dayRange)}</dd></div>
+        <div><dt>Volume</dt><dd>${dash(profile.volume)}</dd></div>
+        <div><dt>Avg volume</dt><dd>${dash(profile.averageVolume)}</dd></div>
+        <div><dt>Prev close</dt><dd>${dash(profile.previousClose)}</dd></div>
+        <div><dt>1y target</dt><dd>${dash(profile.target)}</dd></div>
+        <div><dt>Dividend</dt><dd>${dash(profile.dividend)}</dd></div>
+        <div><dt>Yield</dt><dd>${dash(profile.yield)}</dd></div>
+      </dl>`
+    : "";
+
+  els.viewCompany.innerHTML = `
+    <button class="back-link" type="button" data-back>← Back to calendar</button>
+    <div class="company-hero">
+      <div>
+        <h2>${escapeHtml(symbol)}</h2>
+        <p class="company-hero__name">${escapeHtml(name)}</p>
+        <p class="company-hero__meta">${[profile?.exchange, profile?.sector, profile?.industry].filter(Boolean).map(escapeHtml).join(" · ") || "Company snapshot"}</p>
+      </div>
+      <div class="quote">
+        <div class="quote__price">${dash(profile?.price)}</div>
+        <div class="quote__chg ${dir}">${chg ? escapeHtml(chg) : ""}</div>
+        <p class="quote-asof">${escapeHtml(profile?.asOf || profile?.marketStatus || "")}</p>
+      </div>
+    </div>
+    ${loading}
+    ${error}
+    ${profile?.description ? `<p class="company-desc">${escapeHtml(profile.description)}</p>` : ""}
+    ${website}
+    ${stats}
+    ${callCards}
+    ${history}
+  `;
+
+  els.asOf.textContent = selected ? `Next call ${longDate(selected.date)}` : symbol;
+  els.source.textContent = [profile?.exchange, "Nasdaq company data"].filter(Boolean).join(" · ");
+  document.title = `${symbol} — Earnings Calendar`;
+}
+
+async function showCompany(symbol, date) {
+  const ticker = String(symbol || "").toUpperCase();
+  if (!isSymbol(ticker)) {
+    els.viewCompany.innerHTML = `<p class="empty">That ticker does not look valid.</p>`;
+    return;
+  }
+  state.companySymbol = ticker;
+  state.companyDate = date || "";
+  const cached = state.companyCache[ticker];
+  renderCompany(ticker, cached || { loading: true });
+  if (cached && !cached.loading) return;
+  try {
+    const profile = await loadCompanyProfile(ticker);
+    state.companyCache[ticker] = profile;
+    if (state.tab === "company" && state.companySymbol === ticker) {
+      renderCompany(ticker, profile);
+    }
+  } catch (err) {
+    const fallback = { error: err.message || "Could not load company" };
+    if (state.tab === "company" && state.companySymbol === ticker) {
+      renderCompany(ticker, fallback);
+    }
+  }
+}
+
+function applyHash() {
+  const hash = (location.hash || "#calendar").replace(/^#/, "");
+  if (hash === "keys") {
+    setView("keys", { updateHash: false });
+    return;
+  }
+  const company = hash.match(/^company\/([A-Za-z0-9.\-]+)(?:\/(\d{4}-\d{2}-\d{2}))?$/);
+  if (company) {
+    setView("company", {
+      symbol: company[1].toUpperCase(),
+      date: company[2],
+      updateHash: false,
+    });
+    return;
+  }
+  setView("calendar", { updateHash: false });
 }
 
 function renderWeek(allCalls, filtered) {
@@ -188,11 +403,11 @@ function renderBoard(calls) {
           const tags = extras
             .map((s) => `<span class="tag">${escapeHtml(SOURCE_LABEL[s] || s)}</span>`)
             .join("");
-          return `<tr>
+          return `<tr class="call-row" data-symbol="${escapeHtml(call.symbol)}" data-date="${escapeHtml(call.date)}" tabindex="0" role="link" aria-label="${escapeHtml(call.symbol)} company details">
             <td><span class="time-badge ${call.time}">${TIME_LABEL[call.time]}</span></td>
             <td class="symbol">${escapeHtml(call.symbol)}</td>
             <td>
-              <div>${escapeHtml(call.name || "—")}</div>
+              <div class="name-link">${escapeHtml(call.name || "—")}</div>
               <div class="company hide-sm">${escapeHtml(call.fiscalQuarterEnding || "")}${tags ? ` ${tags}` : ""}</div>
             </td>
             <td class="num">${escapeHtml(call.marketCapDisplay || "—")}</td>
@@ -275,6 +490,7 @@ function renderKeyCards() {
 function render() {
   const snap = state.snapshot;
   if (!snap || state.tab !== "calendar") return;
+  document.title = "Earnings Calendar";
   const filtered = snap.calls.filter(matches);
   const generated = new Date(snap.generatedAt);
   const when = new Intl.DateTimeFormat("en-US", {
@@ -381,6 +597,7 @@ async function load() {
     state.base.mode = state.base.mode || "snapshot";
     state.snapshot = await enrichFromKeys(state.base);
     if (state.tab === "calendar") render();
+    if (state.tab === "company") showCompany(state.companySymbol, state.companyDate);
   } catch (err) {
     els.asOf.textContent = "Loading live calendar…";
   }
@@ -390,6 +607,7 @@ async function load() {
     state.base = live;
     state.snapshot = await enrichFromKeys(state.base);
     if (state.tab === "calendar") render();
+    if (state.tab === "company") showCompany(state.companySymbol, state.companyDate);
   } catch (err) {
     if (!state.snapshot) throw err;
   }
@@ -412,7 +630,25 @@ document.querySelectorAll("[data-cap]").forEach((btn) => {
 });
 
 document.querySelectorAll(".tab").forEach((btn) => {
-  btn.addEventListener("click", () => setTab(btn.dataset.tab));
+  btn.addEventListener("click", () => setView(btn.dataset.tab));
+});
+
+els.board.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-symbol]");
+  if (!row) return;
+  setView("company", { symbol: row.dataset.symbol, date: row.dataset.date });
+});
+
+els.board.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const row = event.target.closest("[data-symbol]");
+  if (!row) return;
+  event.preventDefault();
+  setView("company", { symbol: row.dataset.symbol, date: row.dataset.date });
+});
+
+els.viewCompany.addEventListener("click", (event) => {
+  if (event.target.closest("[data-back]")) setView("calendar");
 });
 
 els.week.addEventListener("click", (event) => {
@@ -474,7 +710,8 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-setTab(location.hash === "#keys" ? "keys" : "calendar");
+applyHash();
+window.addEventListener("hashchange", applyHash);
 
 load().catch((err) => {
   els.board.innerHTML = `<p class="empty">Could not load earnings data. ${escapeHtml(err.message)}</p>`;

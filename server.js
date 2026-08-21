@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { fetchUpcoming } from "./scripts/earnings-lib.mjs";
 import { fetchProvider, providerIds } from "./providers.js";
+import { fetchNasdaqCompany, isSymbol } from "./company.js";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const PORT = Number(process.env.PORT || 3000);
@@ -25,6 +26,7 @@ const MIME = {
 
 let cache = { at: 0, data: null };
 const CACHE_MS = 10 * 60 * 1000;
+const companyCache = new Map();
 
 async function readJson(req) {
   const chunks = [];
@@ -125,6 +127,29 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  const companyMatch = url.pathname.match(/^\/api\/company\/([^/]+)$/);
+  if (companyMatch && req.method === "GET") {
+    const symbol = decodeURIComponent(companyMatch[1] || "").toUpperCase();
+    if (!isSymbol(symbol)) {
+      sendJson(res, 400, { error: "Invalid symbol" });
+      return;
+    }
+    try {
+      const now = Date.now();
+      const hit = companyCache.get(symbol);
+      if (hit && now - hit.at < CACHE_MS) {
+        sendJson(res, 200, hit.data);
+        return;
+      }
+      const data = await fetchNasdaqCompany(symbol);
+      companyCache.set(symbol, { at: now, data });
+      sendJson(res, 200, data);
+    } catch (err) {
+      sendJson(res, 502, { error: err.message || "Company lookup failed" });
+    }
+    return;
+  }
+
   const providerMatch = url.pathname.match(/^\/api\/provider\/([a-z]+)$/);
   if (providerMatch && req.method === "POST") {
     const id = providerMatch[1];
@@ -160,4 +185,5 @@ server.listen(PORT, HOST, () => {
   console.log(`Earnings Calendar running at http://localhost:${PORT}`);
   console.log("Live API:  GET /api/earnings");
   console.log("Provider: POST /api/provider/{finnhub|fmp|alphavantage}");
+  console.log("Company:  GET  /api/company/NVDA");
 });

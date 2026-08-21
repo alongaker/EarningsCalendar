@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
 import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage } from "../providers.js";
+import { isSymbol, normalizeCompany } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -66,10 +67,31 @@ assert(merged[0].sources.includes("finnhub"), "merge records finnhub");
 
 const csv = parseCsv("symbol,name,reportDate,estimate\nAAPL,Apple Inc,2026-08-21,1.5");
 assert(normalizeAlphaVantage(csv[0]).symbol === "AAPL", "alpha csv normalize");
+assert(isSymbol("NVDA") && !isSymbol("../etc") && !isSymbol(""), "symbol guard");
+const company = normalizeCompany({
+  info: {
+    symbol: "NVDA",
+    companyName: "NVIDIA Corporation Common Stock",
+    exchange: "NASDAQ-GS",
+    primaryData: { lastSalePrice: "$215.00", netChange: "+1.00", percentageChange: "+0.47%", deltaIndicator: "up" },
+  },
+  profile: {
+    CompanyName: { value: "NVIDIA Corporation" },
+    Sector: { value: "Technology" },
+    CompanyDescription: { value: "AI chips" },
+  },
+  surprises: {
+    earningsSurpriseTable: { rows: [{ fiscalQtrEnd: "Apr 2026", dateReported: "5/20/2026", eps: 1.87, consensusForecast: "1.7", percentageSurprise: "10" }] },
+  },
+});
+assert(company.name === "NVIDIA Corporation", "company name");
+assert(company.price === "$215.00", "company price");
+assert(company.earningsHistory.length === 1, "earnings history");
 
 const html = await readFile(join(root, "index.html"), "utf8");
 assert(html.includes("Earnings Calendar"), "index has title");
 assert(html.includes("API keys"), "index has API keys tab");
+assert(html.includes("view-company"), "index has company view");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");
 
@@ -120,6 +142,11 @@ try {
     body: JSON.stringify({ apiKey: "x", from: "2026-08-21", to: "2026-09-10" }),
   });
   assert(unknown.status === 404, "unknown provider");
+  const badCompany = await fetch("http://127.0.0.1:3456/api/company/-BAD");
+  assert(badCompany.status === 400, "invalid company symbol");
+  const nvda = await fetch("http://127.0.0.1:3456/api/company/NVDA");
+  const nvdaJson = await nvda.json();
+  assert(nvda.ok && nvdaJson.symbol === "NVDA" && nvdaJson.price, "company profile API");
 } finally {
   shutdown();
 }
