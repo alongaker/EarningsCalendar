@@ -15,7 +15,6 @@ const state = {
 const els = {
   asOf: document.querySelector("#as-of"),
   source: document.querySelector("#source-line"),
-  lead: document.querySelector("#lead"),
   week: document.querySelector("#week"),
   board: document.querySelector("#board"),
   q: document.querySelector("#q"),
@@ -75,34 +74,6 @@ function groupByDate(calls) {
     map.get(call.date).push(call);
   }
   return [...map.entries()];
-}
-
-function leadCall(calls) {
-  const ranked = [...calls].sort((a, b) => b.marketCap - a.marketCap);
-  return ranked[0] || null;
-}
-
-function renderLead(calls) {
-  const lead = leadCall(calls);
-  if (!lead) {
-    els.lead.innerHTML = "";
-    return;
-  }
-  els.lead.innerHTML = `
-    <article class="lead-card">
-      <div>
-        <p class="lead-card__label">Largest upcoming</p>
-        <h2>${escapeHtml(lead.symbol)}</h2>
-        <p class="lead-card__name">${escapeHtml(lead.name)}</p>
-        <p class="lead-card__when">${TIME_LABEL[lead.time]} · ${longDate(lead.date)}</p>
-      </div>
-      <dl class="lead-stats">
-        <div class="stat"><dt>Market cap</dt><dd>${escapeHtml(lead.marketCapDisplay)}</dd></div>
-        <div class="stat"><dt>Consensus EPS</dt><dd>${escapeHtml(lead.epsForecast || "—")}</dd></div>
-        <div class="stat"><dt>Quarter ending</dt><dd>${escapeHtml(lead.fiscalQuarterEnding || "—")}</dd></div>
-      </dl>
-    </article>
-  `;
 }
 
 function renderWeek(allCalls, filtered) {
@@ -190,7 +161,6 @@ function render() {
   els.source.textContent = snap.warning
     ? `${snap.sourceLabel} · ${snap.warning}`
     : `${snap.sourceLabel}${snap.mode === "live" ? " · live" : " · snapshot"}`;
-  renderLead(filtered.length ? filtered : snap.calls);
   const weekCalls = snap.calls.filter((call) => {
     const q = state.query.trim().toLowerCase();
     if (q && !`${call.symbol} ${call.name}`.toLowerCase().includes(q)) return false;

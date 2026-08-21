@@ -110,7 +110,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Call Sheet running at http://localhost:${PORT}`);
+  console.log(`Earnings Calendar running at http://localhost:${PORT}`);
   console.log("Live API:  GET /api/earnings");
   console.log("Snapshot:  GET /api/earnings?live=0");
 });

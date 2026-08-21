@@ -12,7 +12,6 @@
   --bmo: #86c08f;
   --amc: #e08a5a;
   --tbd: #9a937a;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
   --serif: "Newsreader", "Times New Roman", serif;
   --sans: "IBM Plex Sans", "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
@@ -51,7 +50,6 @@ body::before {
 }
 
 .masthead,
-.lead,
 .toolbar,
 .week,
 .board,
@@ -63,106 +61,34 @@ body::before {
 .masthead {
   display: flex;
   justify-content: space-between;
+  align-items: end;
   gap: 24px;
   padding: 36px 0 22px;
   border-bottom: 1px solid var(--rule);
 }
 
-.kicker {
-  margin: 0 0 6px;
-  color: var(--gold-soft);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
 h1 {
   margin: 0;
   font-family: var(--serif);
-  font-size: clamp(42px, 7vw, 72px);
+  font-size: clamp(34px, 5.5vw, 56px);
   font-weight: 600;
   letter-spacing: -0.03em;
-  line-height: 0.9;
+  line-height: 1;
 }
 
-.lede,
+.masthead__meta {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
 .masthead__meta p {
   margin: 8px 0 0;
   color: var(--cream-dim);
 }
 
-.masthead__meta {
-  text-align: right;
-  align-self: end;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-
-.lead {
-  margin-top: 28px;
-}
-
-.lead-card {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 18px 32px;
-  padding: 24px 26px;
-  background: var(--ink-2);
-  border: 1px solid var(--rule);
-  box-shadow: var(--shadow);
-}
-
-.lead-card__label {
-  margin: 0;
-  color: var(--gold);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.lead-card h2 {
-  margin: 6px 0 0;
-  font-family: var(--mono);
-  font-size: clamp(40px, 6vw, 64px);
-  line-height: 0.95;
-}
-
-.lead-card__name {
-  margin: 4px 0 0;
-  font-family: var(--serif);
-  font-size: 22px;
-}
-
-.lead-card__when {
-  margin: 10px 0 0;
-  color: var(--cream-dim);
-}
-
-.lead-stats {
-  display: grid;
-  gap: 10px;
-  align-content: end;
-  min-width: 180px;
-}
-
-.stat {
-  padding-top: 8px;
-  border-top: 1px solid var(--rule);
-}
-
-.stat dt {
-  color: var(--mute);
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.stat dd {
-  margin: 2px 0 0;
-  font-size: 18px;
+.masthead__meta p:first-child {
+  margin-top: 0;
 }
 
 .toolbar {
@@ -368,12 +294,6 @@ code {
 }
 
 @media (max-width: 760px) {
-  .masthead,
-  .lead-card {
-    grid-template-columns: 1fr;
-    display: grid;
-  }
-
   .masthead {
     display: grid;
   }

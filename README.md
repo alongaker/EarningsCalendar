@@ -1,4 +1,4 @@
-# Call Sheet
+# Earnings Calendar
 
 A small website for **upcoming earnings calls**: ticker, company, before-open vs after-close, market cap, and consensus EPS. Run it on a local server while you iterate, then publish the same files to GitHub Pages.
 
@@ -19,7 +19,7 @@ The local server serves the page and a live API:
 
 | URL | What it does |
 | --- | --- |
-| `/` | The Call Sheet UI |
+| `/` | The Earnings Calendar UI |
 | `/api/earnings` | Fresh Nasdaq fetch (cached 10 minutes) |
 | `/api/earnings?live=0` | The saved `data/earnings.json` snapshot |
 | `/api/health` | Server ping |

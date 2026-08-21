@@ -2,7 +2,7 @@
   "remote.autoForwardPorts": true,
   "remote.portsAttributes": {
     "3000": {
-      "label": "Call Sheet",
+      "label": "Earnings Calendar",
       "onAutoForward": "notify"
     }
   }

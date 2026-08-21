@@ -32,7 +32,7 @@ assert(formatMarketCap(row.marketCap) === "$5.25T", "format trillions");
 assert(parseMarketCap("N/A") === 0, "N/A market cap");
 
 const html = await readFile(join(root, "index.html"), "utf8");
-assert(html.includes("Call Sheet"), "index has title");
+assert(html.includes("Earnings Calendar"), "index has title");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");
 
@@ -54,7 +54,7 @@ try {
   await new Promise((resolve, reject) => {
     const t = setTimeout(() => reject(new Error("server start timeout")), 8000);
     server.stdout.on("data", (buf) => {
-      if (String(buf).includes("Call Sheet running")) {
+      if (String(buf).includes("Earnings Calendar running")) {
         clearTimeout(t);
         resolve();
       }
@@ -66,7 +66,7 @@ try {
   assert(health.ok, "health endpoint");
   const home = await fetch("http://127.0.0.1:3456/");
   const body = await home.text();
-  assert(home.ok && body.includes("Call Sheet"), "serves homepage");
+  assert(home.ok && body.includes("Earnings Calendar"), "serves homepage");
   const snap = await fetch("http://127.0.0.1:3456/api/earnings?live=0");
   const snapJson = await snap.json();
   assert(snap.ok && snapJson.count > 0, "snapshot API");
