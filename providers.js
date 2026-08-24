@@ -51,8 +51,19 @@ export function startOfMarketDay(d = new Date(), timeZone = MARKET_TZ) {
   return new Date(`${marketDateIso(d, timeZone)}T00:00:00.000Z`);
 }
 
+const NON_OPERATING_NAME =
+  /\b(?:etfs?|etns?|exchange[\s-]*traded|closed[\s-]*end|mutual\s+funds?|blank\s+check|spacs?)\b|\bacquisition\s+(?:corp(?:oration)?|co\.?|company)\b|\b(?:royalt\w*|oil)\s+(?:\w+\s+)?trusts?\b|\bfunds?\b/i;
+
+export function isOperatingCompany(name) {
+  const n = String(name || "").trim();
+  if (!n) return true;
+  return !NON_OPERATING_NAME.test(n);
+}
+
 export function windowUpcoming(snap, today = marketDateIso()) {
-  const calls = (snap?.calls || []).filter((call) => call.date >= today);
+  const calls = (snap?.calls || []).filter(
+    (call) => call.date >= today && isOperatingCompany(call.name)
+  );
   return {
     ...snap,
     startDate: calls[0]?.date || today,
@@ -318,7 +329,7 @@ export function mergeCalls(base, extras, { dateWindow = 45 } = {}) {
       name: formatCompanyName(call.name),
       sources: [...new Set(call.sources || [])],
     };
-    if (!incoming.symbol) return;
+    if (!incoming.symbol || !isOperatingCompany(incoming.name)) return;
     const list = bySymbol.get(incoming.symbol) || [];
     const d = dayNum(incoming.date);
     const idx = list.findIndex((prev) => Math.abs(dayNum(prev.date) - d) <= dateWindow);
@@ -382,7 +393,7 @@ export async function fetchProvider(id, apiKey, { from, to, fetchImpl = fetch } 
     url.searchParams.set("token", key);
     const payload = await fetchJson(url, { fetchImpl });
     const rows = payload?.earningsCalendar || [];
-    return rows.map(normalizeFinnhub).filter((c) => c.symbol && c.date);
+    return rows.map(normalizeFinnhub).filter((c) => c.symbol && c.date && isOperatingCompany(c.name));
   }
 
   if (id === "fmp") {
@@ -401,7 +412,7 @@ export async function fetchProvider(id, apiKey, { from, to, fetchImpl = fetch } 
       payload = await fetchJson(fallback, { fetchImpl });
     }
     const rows = Array.isArray(payload) ? payload : [];
-    return rows.map(normalizeFmp).filter((c) => c.symbol && c.date);
+    return rows.map(normalizeFmp).filter((c) => c.symbol && c.date && isOperatingCompany(c.name));
   }
 
   if (id === "alphavantage") {
@@ -426,7 +437,7 @@ export async function fetchProvider(id, apiKey, { from, to, fetchImpl = fetch } 
     const rows = parseCsv(text);
     return rows
       .map(normalizeAlphaVantage)
-      .filter((c) => c.symbol && c.date && c.date >= from && c.date <= to);
+      .filter((c) => c.symbol && c.date && c.date >= from && c.date <= to && isOperatingCompany(c.name));
   }
 
   throw new Error(`Unknown provider: ${id}`);

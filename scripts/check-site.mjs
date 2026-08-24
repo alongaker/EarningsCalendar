@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, formatEps, formatCompanyName, marketDateIso, windowUpcoming } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, formatEps, formatCompanyName, marketDateIso, windowUpcoming, isOperatingCompany } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -169,6 +169,12 @@ assert(formatCompanyName("BANK OF AMERICA CORP") === "Bank of America Corp", "sm
 assert(formatCompanyName("NVIDIA Corporation") === "NVIDIA Corporation", "keep mixed-case names");
 assert(formatCompanyName("XYZ INC") === "Xyz Inc", "caps inc suffix");
 assert(formatCompanyName("Boxabl, Inc. Common Stock") === "Boxabl, Inc.", "drop common stock suffix");
+assert(isOperatingCompany("NVIDIA Corporation"), "keep operating companies");
+assert(!isOperatingCompany("SPDR S&P 500 ETF Trust"), "drop ETFs");
+assert(!isOperatingCompany("PIMCO Corporate Opportunity Fund"), "drop funds");
+assert(!isOperatingCompany("American Exceptionalism Acquisition Corp. A"), "drop SPACs");
+assert(!isOperatingCompany("North European Oil Royality Trust"), "drop royalty trusts");
+assert(isOperatingCompany("InnSuites Hospitality Trust"), "keep operating REITs");
 
 const csv = parseCsv("symbol,name,reportDate,estimate\nAAPL,Apple Inc,2026-08-21,1.5");
 assert(normalizeAlphaVantage(csv[0]).symbol === "AAPL", "alpha csv normalize");
