@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, abbreviateCompanyName, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -176,6 +176,13 @@ assert(formatCompanyName("BANK OF AMERICA CORP") === "Bank of America Corp", "sm
 assert(formatCompanyName("NVIDIA Corporation") === "NVIDIA Corporation", "keep mixed-case names");
 assert(formatCompanyName("XYZ INC") === "Xyz Inc", "caps inc suffix");
 assert(formatCompanyName("Boxabl, Inc. Common Stock") === "Boxabl, Inc.", "drop common stock suffix");
+assert(abbreviateCompanyName("ChronoScale Holdings Corporation") === "ChronoScale Holdings Corp", "Corporation to Corp");
+assert(abbreviateCompanyName("NAPCO Security Technologies, Inc.") === "NAPCO Security Tech, Inc.", "Technologies to Tech");
+assert(abbreviateCompanyName("CBAK Energy Technology Limited") === "CBAK Energy Tech Ltd", "Technology and Limited");
+assert(abbreviateCompanyName("Apartment Investment and Management Company") === "Apartment Investment and Management Co", "Company to Co");
+assert(abbreviateCompanyName("Foo Incorporated") === "Foo Inc", "Incorporated to Inc");
+assert(abbreviateCompanyName("Bank of America Corp") === "Bank of America Corp", "already short stays short");
+assert(abbreviateCompanyName("Unlimited Power Ltd") === "Unlimited Power Ltd", "Unlimited is not Limited");
 assert(isOperatingCompany("NVIDIA Corporation"), "keep operating companies");
 assert(!isOperatingCompany("SPDR S&P 500 ETF Trust"), "drop ETFs");
 assert(!isOperatingCompany("PIMCO Corporate Opportunity Fund"), "drop funds");

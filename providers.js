@@ -220,6 +220,18 @@ export function formatCompanyName(name) {
   });
 }
 
+export function abbreviateCompanyName(name) {
+  const s = formatCompanyName(name);
+  if (!s) return "";
+  return s
+    .replace(/\bcorporations?\b\.?/gi, "Corp")
+    .replace(/\btechnologies\b\.?/gi, "Tech")
+    .replace(/\btechnology\b\.?/gi, "Tech")
+    .replace(/\blimited\b\.?/gi, "Ltd")
+    .replace(/\bincorporated\b\.?/gi, "Inc")
+    .replace(/\bcompany\b\.?/gi, "Co");
+}
+
 export function formatEps(value) {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value === "string") {
