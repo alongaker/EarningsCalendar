@@ -728,7 +728,7 @@ input[type="search"]:focus {
   grid-template-columns: 28px minmax(0, 1fr);
   gap: 8px 10px;
   align-items: center;
-  padding: 14px 12px 12px 8px;
+  padding: 17px 12px 12px 8px;
   border: 1px solid var(--rule);
   background: var(--ink-2);
 }
