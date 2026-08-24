@@ -727,8 +727,8 @@ input[type="search"]:focus {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
   gap: 8px 10px;
-  align-items: start;
-  padding: 8px 10px 8px 8px;
+  align-items: center;
+  padding: 14px 12px 12px 8px;
   border: 1px solid var(--rule);
   background: var(--ink-2);
 }
@@ -744,19 +744,23 @@ input[type="search"]:focus {
 .key-card__handle {
   grid-column: 1;
   grid-row: 1;
-  align-self: start;
-  justify-self: start;
+  align-self: stretch;
+  justify-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin: 0;
   padding: 0;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: auto;
+  min-height: 100%;
   border: 0;
   background: transparent;
   color: var(--mute);
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 600;
-  line-height: 22px;
+  line-height: 1;
   text-align: center;
   cursor: grab;
 }
