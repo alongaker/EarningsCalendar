@@ -314,33 +314,100 @@ function applyLastRevenue(calls, found) {
 }
 
 const revenueCache = new Map();
+const revenueInflight = new Map();
+const REV_STORE = "earningsCalendar.lastRev.v1";
+const REV_TTL_MS = 6 * 60 * 60 * 1000;
+
+function readRevStore() {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = JSON.parse(localStorage.getItem(REV_STORE) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberRevenue(ticker, data) {
+  if (!data?.lastRevenue) return;
+  revenueCache.set(ticker, { at: Date.now(), data });
+  if (typeof localStorage === "undefined") return;
+  try {
+    const store = readRevStore();
+    store[ticker] = {
+      lastRevenue: data.lastRevenue,
+      lastRevenueDisplay: data.lastRevenueDisplay,
+      at: Date.now(),
+    };
+    localStorage.setItem(REV_STORE, JSON.stringify(store));
+  } catch {
+    // Ignore quota errors.
+  }
+}
+
+function cachedRevenue(ticker) {
+  const mem = revenueCache.get(ticker);
+  if (mem?.data?.lastRevenue && Date.now() - mem.at < REV_TTL_MS) return mem.data;
+  const saved = readRevStore()[ticker];
+  if (saved?.lastRevenue && Date.now() - (saved.at || 0) < REV_TTL_MS) {
+    const data = {
+      lastRevenue: saved.lastRevenue,
+      lastRevenueDisplay: saved.lastRevenueDisplay || "",
+    };
+    revenueCache.set(ticker, { at: saved.at || Date.now(), data });
+    return data;
+  }
+  return null;
+}
+
+export function hydrateLastRevenue(calls) {
+  return applyLastRevenue(
+    calls,
+    new Map(
+      (calls || [])
+        .map((call) => [call.symbol, cachedRevenue(canonicalSymbol(call.symbol))])
+        .filter(([, data]) => data?.lastRevenue)
+    )
+  );
+}
 
 async function lookupRevenue(symbol, { fetchImpl } = {}) {
   const ticker = canonicalSymbol(symbol);
-  const hit = revenueCache.get(ticker);
-  if (hit && Date.now() - hit.at < 6 * 60 * 60 * 1000) return hit.data;
-  try {
-    if (typeof window !== "undefined") {
-      const res = await fetch(`/api/revenue/${encodeURIComponent(ticker)}`, { cache: "no-store" });
-      const contentType = res.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        const payload = await res.json();
-        if (res.ok) {
-          const data = {
-            lastRevenue: Number(payload.lastRevenue) || 0,
-            lastRevenueDisplay: payload.lastRevenueDisplay || "",
-          };
-          revenueCache.set(ticker, { at: Date.now(), data });
-          return data;
+  const cached = cachedRevenue(ticker);
+  if (cached) return cached;
+  if (revenueInflight.has(ticker)) return revenueInflight.get(ticker);
+
+  const pending = (async () => {
+    try {
+      if (typeof window !== "undefined") {
+        const res = await fetch(`/api/revenue/${encodeURIComponent(ticker)}`, { cache: "no-store" });
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const payload = await res.json();
+          if (res.ok) {
+            const data = {
+              lastRevenue: Number(payload.lastRevenue) || 0,
+              lastRevenueDisplay: payload.lastRevenueDisplay || "",
+            };
+            rememberRevenue(ticker, data);
+            return data;
+          }
         }
       }
+    } catch {
+      // Fall through to Nasdaq.
     }
-  } catch {
-    // Fall through to Nasdaq.
+    const data = await fetchLastQuarterRevenue(ticker, { fetchImpl });
+    rememberRevenue(ticker, data);
+    return data;
+  })();
+
+  revenueInflight.set(ticker, pending);
+  try {
+    return await pending;
+  } finally {
+    revenueInflight.delete(ticker);
   }
-  const data = await fetchLastQuarterRevenue(ticker, { fetchImpl });
-  revenueCache.set(ticker, { at: Date.now(), data });
-  return data;
 }
 
 export async function enrichLastRevenue(
@@ -358,7 +425,7 @@ export async function enrichLastRevenue(
 
   const found = new Map();
   let done = 0;
-  await mapPool(symbols, 4, async (symbol) => {
+  await mapPool(symbols, 2, async (symbol) => {
     const data = await lookupRevenue(symbol, { fetchImpl });
     if (data?.lastRevenue) found.set(symbol, data);
     done += 1;

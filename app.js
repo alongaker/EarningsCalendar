@@ -1,5 +1,5 @@
 import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
-import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue } from "./company.js";
+import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, hydrateLastRevenue } from "./company.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -905,12 +905,32 @@ async function enrichFromKeys(base) {
   return mergeCachedExtras(base);
 }
 
+function carryMetrics(calls) {
+  const prev = new Map((state.snapshot?.calls || []).map((call) => [call.symbol, call]));
+  return (calls || []).map((call) => {
+    const prior = prev.get(call.symbol);
+    if (!prior) return call;
+    const hasRevEst = String(call.revenueEstimateDisplay || "").trim();
+    const hasLast = call.lastRevenue || String(call.lastRevenueDisplay || "").trim();
+    return {
+      ...call,
+      lastRevenue: hasLast ? call.lastRevenue : prior.lastRevenue || 0,
+      lastRevenueDisplay: hasLast ? call.lastRevenueDisplay : prior.lastRevenueDisplay || "",
+      revenueEstimate: hasRevEst ? call.revenueEstimate : prior.revenueEstimate || 0,
+      revenueEstimateDisplay: hasRevEst ? call.revenueEstimateDisplay : prior.revenueEstimateDisplay || "",
+    };
+  });
+}
+
 async function applyCalendar(base, { refreshKeys = true } = {}) {
   const windowed = currentWindow(base);
   const merged = refreshKeys ? await enrichFromKeys(windowed) : mergeCachedExtras(windowed);
   const named = {
     ...merged,
-    calls: (merged.calls || []).map((c) => ({ ...c, name: displayName(c.name) })),
+    calls: hydrateLastRevenue(carryMetrics(merged.calls || [])).map((c) => ({
+      ...c,
+      name: displayName(c.name),
+    })),
   };
   named.count = named.calls.length;
   state.snapshot = named;
