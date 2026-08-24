@@ -1,4 +1,4 @@
-import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, formatCompanyName, formatEps, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
+import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, rankedIds, reorderIds, formatCompanyName, formatEps, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls } from "./company.js";
 
 const TIME_LABEL = {
@@ -9,6 +9,7 @@ const TIME_LABEL = {
 };
 
 const KEYS_STORAGE = "earningsCalendar.apiKeys.v1";
+const ORDER_STORAGE = "earningsCalendar.apiKeyOrder.v1";
 const NAV_STORAGE = "earningsCalendar.sidenav.v1";
 
 const state = {
@@ -20,6 +21,8 @@ const state = {
   day: "all",
   tab: "calendar",
   keys: loadKeys(),
+  keyOrder: loadKeyOrder(),
+  extraCalls: {},
   statuses: {},
   companySymbol: "",
   companyDate: "",
@@ -64,6 +67,27 @@ function loadKeys() {
 
 function saveKeys() {
   localStorage.setItem(KEYS_STORAGE, JSON.stringify(state.keys));
+}
+
+function loadKeyOrder() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ORDER_STORAGE) || "[]");
+    return Array.isArray(raw) ? raw.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveKeyOrder() {
+  localStorage.setItem(ORDER_STORAGE, JSON.stringify(state.keyOrder));
+}
+
+function persistKeyOrder(order) {
+  state.keyOrder = rankedIds(
+    connectedIds(),
+    order
+  );
+  saveKeyOrder();
 }
 
 function connectedCount() {
@@ -624,8 +648,16 @@ function statusLine(id) {
   return s.message || "Could not connect";
 }
 
+function connectedIds() {
+  return providersByName()
+    .filter((provider) => state.keys[provider.id])
+    .map((provider) => provider.id);
+}
+
 function connectedProviders() {
-  return providersByName().filter((provider) => state.keys[provider.id]);
+  return rankedIds(connectedIds(), state.keyOrder)
+    .map((id) => providerById(id))
+    .filter(Boolean);
 }
 
 function unusedProviders() {
@@ -688,36 +720,54 @@ function renderKeysPage() {
     return;
   }
   els.keyList.innerHTML = saved
-    .map((provider) => {
+    .map((provider, index) => {
       const s = state.statuses[provider.id];
       const tone = s?.state === "err" ? "is-err" : s?.state === "ok" ? "is-ok" : "";
-      return `<article class="key-card" data-provider="${provider.id}">
-        <div class="key-card__head">
-          <h2>${escapeHtml(provider.name)}</h2>
-          <p class="key-status ${tone}">${escapeHtml(statusLine(provider.id))}</p>
+      const rank = index + 1;
+      const rankLabel = index === 0 ? `${rank} · preferred extra` : `Priority ${rank}`;
+      return `<article class="key-card" data-provider="${provider.id}" draggable="true">
+        <div class="key-card__rank">
+          <button
+            type="button"
+            class="key-card__handle"
+            data-rank-handle="${provider.id}"
+            draggable="true"
+            aria-label="${escapeHtml(provider.name)} priority ${rank}. Drag or use arrow keys to reorder"
+            title="Drag to rank"
+          >
+            <span aria-hidden="true">⋮⋮</span>
+          </button>
+          <p class="key-card__pos">${escapeHtml(rankLabel)}</p>
         </div>
-        <p class="key-links">
-          ${escapeHtml(maskKey(state.keys[provider.id]))}
-          ·
-          <a href="${provider.signup}" target="_blank" rel="noopener">Get a key</a>
-          ·
-          <a href="${provider.docs}" target="_blank" rel="noopener">API docs</a>
-        </p>
-        <label class="key-field">
-          <span>Update key</span>
-          <input
-            type="password"
-            name="${provider.id}"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="${escapeHtml(provider.placeholder)}"
-            value="${escapeHtml(state.keys[provider.id])}"
-          />
-        </label>
-        <div class="key-actions">
-          <button type="button" data-save="${provider.id}">Update</button>
-          <button type="button" class="ghost" data-test="${provider.id}">Test</button>
-          <button type="button" class="ghost" data-clear="${provider.id}">Remove</button>
+        <div class="key-card__body">
+          <div class="key-card__head">
+            <h2>${escapeHtml(provider.name)}</h2>
+            <p class="key-status ${tone}">${escapeHtml(statusLine(provider.id))}</p>
+          </div>
+          <p class="key-links">
+            ${escapeHtml(maskKey(state.keys[provider.id]))}
+            ·
+            <a href="${provider.signup}" target="_blank" rel="noopener">Get a key</a>
+            ·
+            <a href="${provider.docs}" target="_blank" rel="noopener">API docs</a>
+          </p>
+          <label class="key-field">
+            <span>Update key</span>
+            <input
+              type="password"
+              name="${provider.id}"
+              draggable="false"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="${escapeHtml(provider.placeholder)}"
+              value="${escapeHtml(state.keys[provider.id])}"
+            />
+          </label>
+          <div class="key-actions">
+            <button type="button" data-save="${provider.id}">Update</button>
+            <button type="button" class="ghost" data-test="${provider.id}">Test</button>
+            <button type="button" class="ghost" data-clear="${provider.id}">Remove</button>
+          </div>
         </div>
       </article>`;
     })
@@ -801,31 +851,8 @@ async function loadProviderCalls(id, apiKey, from, to) {
   return fetchProvider(id, apiKey, { from, to });
 }
 
-async function enrichFromKeys(base) {
-  const from = base.startDate;
-  const to = base.endDate;
-  const extras = [];
-  await Promise.all(
-    PROVIDERS.map(async (provider) => {
-      const key = state.keys[provider.id];
-      if (!key) {
-        delete state.statuses[provider.id];
-        return;
-      }
-      state.statuses[provider.id] = { state: "busy" };
-      try {
-        const calls = await loadProviderCalls(provider.id, key, from, to);
-        extras.push(...calls);
-        state.statuses[provider.id] = { state: "ok", count: calls.length };
-      } catch (err) {
-        state.statuses[provider.id] = {
-          state: "err",
-          message: err.message || "Request failed",
-        };
-      }
-    })
-  );
-  if (state.tab === "keys") renderKeysPage();
+function mergeCachedExtras(base) {
+  const extras = connectedProviders().flatMap((provider) => state.extraCalls[provider.id] || []);
   if (!extras.length) {
     return {
       ...base,
@@ -841,8 +868,38 @@ async function enrichFromKeys(base) {
   return { ...base, count: calls.length, calls };
 }
 
-async function applyCalendar(base) {
-  const merged = await enrichFromKeys(currentWindow(base));
+async function enrichFromKeys(base) {
+  const from = base.startDate;
+  const to = base.endDate;
+  await Promise.all(
+    PROVIDERS.map(async (provider) => {
+      const key = state.keys[provider.id];
+      if (!key) {
+        delete state.statuses[provider.id];
+        delete state.extraCalls[provider.id];
+        return;
+      }
+      state.statuses[provider.id] = { state: "busy" };
+      try {
+        const calls = await loadProviderCalls(provider.id, key, from, to);
+        state.extraCalls[provider.id] = calls;
+        state.statuses[provider.id] = { state: "ok", count: calls.length };
+      } catch (err) {
+        delete state.extraCalls[provider.id];
+        state.statuses[provider.id] = {
+          state: "err",
+          message: err.message || "Request failed",
+        };
+      }
+    })
+  );
+  if (state.tab === "keys") renderKeysPage();
+  return mergeCachedExtras(base);
+}
+
+async function applyCalendar(base, { refreshKeys = true } = {}) {
+  const windowed = currentWindow(base);
+  const merged = refreshKeys ? await enrichFromKeys(windowed) : mergeCachedExtras(windowed);
   const named = {
     ...merged,
     calls: (merged.calls || []).map((c) => ({ ...c, name: displayName(c.name) })),
@@ -961,11 +1018,97 @@ els.keyForm.addEventListener("submit", async (event) => {
   }
   state.keys[id] = value;
   saveKeys();
+  persistKeyOrder([...state.keyOrder, id]);
   els.keyValue.value = "";
   showFormStatus(`${provider.name} saved in this browser.`);
   renderKeysPage();
   if (state.base) await applyCalendar(state.base);
   else renderKeysPage();
+});
+
+let dragProvider = "";
+
+function dropIndexAt(clientY) {
+  const others = [...els.keyList.querySelectorAll(".key-card")].filter(
+    (card) => card.dataset.provider !== dragProvider
+  );
+  for (let i = 0; i < others.length; i++) {
+    const rect = others[i].getBoundingClientRect();
+    if (clientY < rect.top + rect.height / 2) return i;
+  }
+  return others.length;
+}
+
+function paintDropTarget(index) {
+  const others = [...els.keyList.querySelectorAll(".key-card")].filter(
+    (card) => card.dataset.provider !== dragProvider
+  );
+  others.forEach((card, i) => card.classList.toggle("is-drop-before", i === index));
+  els.keyList.classList.toggle("is-drop-end", index === others.length && others.length > 0);
+}
+
+async function commitKeyOrder(order) {
+  persistKeyOrder(order);
+  renderKeysPage();
+  if (state.base) await applyCalendar(state.base, { refreshKeys: false });
+}
+
+els.keyList.addEventListener("dragstart", (event) => {
+  if (event.target.closest("input, a, [data-save], [data-test], [data-clear]")) {
+    event.preventDefault();
+    return;
+  }
+  const card = event.target.closest(".key-card");
+  if (!card) {
+    event.preventDefault();
+    return;
+  }
+  dragProvider = card.dataset.provider;
+  card.classList.add("is-dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", dragProvider);
+});
+
+els.keyList.addEventListener("dragover", (event) => {
+  if (!dragProvider) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  paintDropTarget(dropIndexAt(event.clientY));
+});
+
+els.keyList.addEventListener("drop", async (event) => {
+  if (!dragProvider) return;
+  event.preventDefault();
+  const fromId = dragProvider;
+  const ids = connectedProviders().map((provider) => provider.id);
+  const next = reorderIds(ids, fromId, dropIndexAt(event.clientY));
+  dragProvider = "";
+  els.keyList.classList.remove("is-drop-end");
+  await commitKeyOrder(next);
+});
+
+els.keyList.addEventListener("dragend", () => {
+  dragProvider = "";
+  els.keyList.classList.remove("is-drop-end");
+  els.keyList.querySelectorAll(".key-card").forEach((card) => {
+    card.classList.remove("is-dragging", "is-drop-before");
+  });
+});
+
+els.keyList.addEventListener("keydown", async (event) => {
+  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+  if (!event.target.closest("[data-rank-handle]")) return;
+  const card = event.target.closest(".key-card");
+  if (!card) return;
+  event.preventDefault();
+  const ids = connectedProviders().map((provider) => provider.id);
+  const from = ids.indexOf(card.dataset.provider);
+  if (from < 0) return;
+  const nextIndex = event.key === "ArrowUp" ? from - 1 : from + 1;
+  if (nextIndex < 0 || nextIndex >= ids.length) return;
+  await commitKeyOrder(reorderIds(ids, card.dataset.provider, nextIndex));
+  const handle = els.keyList.querySelector(`[data-rank-handle="${card.dataset.provider}"]`);
+  handle?.focus();
 });
 
 els.keyList.addEventListener("click", async (event) => {
@@ -978,7 +1121,9 @@ els.keyList.addEventListener("click", async (event) => {
   if (clearId) {
     state.keys[id] = "";
     delete state.statuses[id];
+    delete state.extraCalls[id];
     saveKeys();
+    persistKeyOrder(state.keyOrder.filter((item) => item !== id));
     showFormStatus("");
     renderKeysPage();
     if (state.base) await applyCalendar(state.base);

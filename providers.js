@@ -64,6 +64,35 @@ export function providersByName() {
   return [...PROVIDERS].sort((a, b) => a.name.localeCompare(b.name, "en"));
 }
 
+export function rankedIds(connectedIds, savedOrder = []) {
+  const have = [];
+  const seen = new Set();
+  for (const id of connectedIds) {
+    const key = String(id || "");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    have.push(key);
+  }
+  const haveSet = new Set(have);
+  const out = [];
+  for (const id of savedOrder) {
+    const key = String(id || "");
+    if (haveSet.has(key) && !out.includes(key)) out.push(key);
+  }
+  for (const id of have) {
+    if (!out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+export function reorderIds(order, fromId, newIndex) {
+  const next = order.filter((id) => id !== fromId);
+  if (!order.includes(fromId)) return [...order];
+  const i = Math.max(0, Math.min(Number(newIndex) || 0, next.length));
+  next.splice(i, 0, fromId);
+  return next;
+}
+
 export function canonicalSymbol(symbol) {
   return String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
 }

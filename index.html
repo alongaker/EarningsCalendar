@@ -97,9 +97,11 @@
       <p class="keys-lede">
         Pick a source, paste its key, and it will show up in the list below.
         Extra sources can fill in missing tickers, revenue, and call times on
-        top of Nasdaq. Keys stay in this browser only — they are not committed
-        to GitHub. More keys help when they cover different names; overlapping
-        calendars mostly confirm the same rows.
+        top of Nasdaq, which always stays the default calendar. Keys stay in
+        this browser only — they are not committed to GitHub. More keys help
+        when they cover different names; overlapping calendars mostly confirm
+        the same rows. Drag connected sources to rank them: higher extras fill
+        blanks first when two keys disagree.
       </p>
       <form id="key-form" class="key-add">
         <label class="key-add__field">
@@ -122,6 +124,7 @@
       <p id="key-hint" class="key-hint"></p>
       <p id="key-form-status" class="key-form-status" hidden></p>
       <h3 class="keys-list-title">Connected sources</h3>
+      <p class="keys-rank-hint">Drag to rank extras. Nasdaq stays first.</p>
       <div id="key-list" class="key-list"></div>
     </section>
 

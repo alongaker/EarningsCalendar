@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatCompanyName, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatCompanyName, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -205,6 +205,44 @@ const twelve = normalizeTwelveData({
 assert(twelve.time === "before-open" && twelve.sources.includes("twelvedata"), "normalize Twelve Data");
 const names = providersByName().map((p) => p.name);
 assert(names.slice().sort((a, b) => a.localeCompare(b, "en")).join() === names.join(), "providers listed A–Z by name");
+assert(rankedIds(["c", "a", "b"], ["b", "a"]).join() === "b,a,c", "saved rank then remaining sources");
+assert(rankedIds(["finnhub", "fmp"], []).join() === "finnhub,fmp", "empty rank keeps given order");
+assert(reorderIds(["a", "b", "c"], "a", 2).join() === "b,c,a", "move first source to end");
+assert(reorderIds(["a", "b", "c"], "c", 0).join() === "c,a,b", "move last source to front");
+
+const nasdaqSparse = {
+  date: "2026-08-26",
+  symbol: "NVDA",
+  name: "NVIDIA Corporation",
+  time: "unspecified",
+  marketCap: 100,
+  marketCapDisplay: "$100",
+  epsForecast: "",
+  revenueEstimate: 0,
+  revenueEstimateDisplay: "",
+  sources: ["nasdaq"],
+};
+const extraFmp = {
+  date: "2026-08-26",
+  symbol: "NVDA",
+  name: "NVIDIA Corporation",
+  time: "after-close",
+  marketCap: 0,
+  epsForecast: "$1.00",
+  revenueEstimate: 10,
+  revenueEstimateDisplay: "$10B",
+  sources: ["fmp"],
+};
+const extraFinnhub = {
+  ...extraFmp,
+  revenueEstimate: 99,
+  revenueEstimateDisplay: "$99B",
+  sources: ["finnhub"],
+};
+const preferFmp = mergeCalls([nasdaqSparse], [extraFmp, extraFinnhub]);
+assert(preferFmp[0].revenueEstimateDisplay === "$10B", "higher-ranked extra keeps revenue");
+const preferFinnhub = mergeCalls([nasdaqSparse], [extraFinnhub, extraFmp]);
+assert(preferFinnhub[0].revenueEstimateDisplay === "$99B", "lower-ranked extra does not overwrite revenue");
 
 const csv = parseCsv("symbol,name,reportDate,estimate\nAAPL,Apple Inc,2026-08-21,1.5");
 assert(normalizeAlphaVantage(csv[0]).symbol === "AAPL", "alpha csv normalize");
@@ -293,6 +331,7 @@ assert(gone.length === 0, "drop tickers Nasdaq does not recognize");
 const html = await readFile(join(root, "index.html"), "utf8");
 assert(html.includes("Earnings Calendar"), "index has title");
 assert(html.includes("API Key Management"), "index has API keys page");
+assert(html.includes("Drag to rank extras"), "index explains extra-source ranking");
 assert(html.includes("view-company"), "index has company view");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");
