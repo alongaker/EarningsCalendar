@@ -38,7 +38,7 @@ This repo is already wired for Pages:
 2. Merge to `main`. The deploy workflow publishes `index.html`, CSS, JS, and `data/earnings.json`.
 3. The site will be at `https://alongaker.github.io/EarningsCalendar/`.
 
-On GitHub Pages there is no Node server, so the page reads the snapshot file. A weekday GitHub Action refreshes that file (or run **Actions → Update earnings data → Run workflow**).
+On GitHub Pages there is no Node server, so the page reads the snapshot file and hides any dates before the current U.S. market day. A daily GitHub Action refreshes that file (or run **Actions → Update earnings data → Run workflow**). Local `npm start` also refetches from Nasdaq, and a tab left open overnight rolls forward at the next market-day change.
 
 ## Project layout
 

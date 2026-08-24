@@ -1,4 +1,5 @@
 import { formatCompanyName } from "../providers.js";
+import { startOfMarketDay } from "../dates.js";
 
 const NASDAQ_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
@@ -78,7 +79,7 @@ export async function fetchDay(date, { fetchImpl = fetch } = {}) {
 
 export async function fetchUpcoming({
   days = 21,
-  start = startOfUtcDay(),
+  start = startOfMarketDay(),
   pauseMs = 80,
   fetchImpl = fetch,
 } = {}) {

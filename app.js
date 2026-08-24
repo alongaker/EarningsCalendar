@@ -1,5 +1,6 @@
 import { PROVIDERS, fetchProvider, mergeCalls, formatCompanyName, formatEps, canonicalSymbol } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls } from "./company.js";
+import { marketDateIso, windowUpcoming } from "./dates.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -602,19 +603,30 @@ function renderKeyCards() {
   }).join("");
 }
 
+function pruneDayFilter(today = marketDateIso()) {
+  if (state.day !== "all" && state.day < today) state.day = "all";
+}
+
+function currentWindow(snap) {
+  return windowUpcoming(snap, marketDateIso());
+}
+
 function render() {
-  const snap = state.snapshot;
-  if (!snap || state.tab !== "calendar") return;
+  pruneDayFilter();
+  if (!state.snapshot || state.tab !== "calendar") return;
+  const snap = currentWindow(state.snapshot);
   document.title = "Earnings Calendar";
   const filtered = snap.calls.filter(matches);
   const generated = new Date(snap.generatedAt);
-  const when = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(generated);
+  const when = Number.isFinite(generated.getTime())
+    ? new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZoneName: "short",
+      }).format(generated)
+    : "just now";
   els.asOf.textContent = `${snap.count} calls · ${snap.startDate} to ${snap.endDate} · updated ${when}`;
   const names = sourceNames(snap);
   els.source.textContent = snap.warning
@@ -708,7 +720,7 @@ async function enrichFromKeys(base) {
 }
 
 async function applyCalendar(base) {
-  const merged = await enrichFromKeys(base);
+  const merged = await enrichFromKeys(currentWindow(base));
   const named = {
     ...merged,
     calls: (merged.calls || []).map((c) => ({ ...c, name: displayName(c.name) })),
@@ -735,8 +747,8 @@ async function applyCalendar(base) {
 
 async function load() {
   try {
-    state.base = await loadSnapshot();
-    state.base.mode = state.base.mode || "snapshot";
+    const raw = await loadSnapshot();
+    state.base = { ...currentWindow(raw), mode: raw.mode || "snapshot" };
     await applyCalendar(state.base);
   } catch (err) {
     els.asOf.textContent = "Loading live calendar…";
@@ -744,7 +756,7 @@ async function load() {
 
   try {
     const live = await loadLive();
-    state.base = live;
+    state.base = currentWindow(live);
     await applyCalendar(state.base);
   } catch (err) {
     if (!state.snapshot) throw err;
@@ -848,6 +860,36 @@ document.addEventListener("keydown", (event) => {
 
 applyHash();
 window.addEventListener("hashchange", applyHash);
+
+let marketDay = marketDateIso();
+let rollingDay = false;
+
+async function onMarketDayChange() {
+  const today = marketDateIso();
+  if (today === marketDay || rollingDay) return;
+  marketDay = today;
+  rollingDay = true;
+  pruneDayFilter(today);
+  try {
+    if (state.base) {
+      state.base = currentWindow(state.base);
+      await applyCalendar(state.base);
+    }
+    const live = await loadLive();
+    state.base = currentWindow(live);
+    await applyCalendar(state.base);
+  } catch {
+    if (state.snapshot) render();
+  } finally {
+    rollingDay = false;
+  }
+}
+
+setInterval(onMarketDayChange, 60 * 1000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") onMarketDayChange();
+});
+window.addEventListener("focus", onMarketDayChange);
 
 load().catch((err) => {
   els.board.innerHTML = `<p class="empty">Could not load earnings data. ${escapeHtml(err.message)}</p>`;

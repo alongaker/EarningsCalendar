@@ -5,6 +5,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { fetchUpcoming } from "./scripts/earnings-lib.mjs";
+import { windowUpcoming, marketDateIso } from "./dates.js";
 import { fetchProvider, providerIds } from "./providers.js";
 import {
   fetchCompanyBundle,
@@ -67,18 +68,19 @@ function sendText(res, status, body, type = "text/plain; charset=utf-8") {
 async function liveEarnings(query) {
   const days = Math.min(45, Math.max(1, Number(query.get("days") || 21)));
   const now = Date.now();
-  if (cache.data && now - cache.at < CACHE_MS && cache.days === days) {
+  const today = marketDateIso();
+  if (cache.data && now - cache.at < CACHE_MS && cache.days === days && cache.today === today) {
     return cache.data;
   }
   const data = await fetchUpcoming({ days });
-  cache = { at: now, days, data };
+  cache = { at: now, days, today, data };
   return data;
 }
 
 async function fileEarnings() {
   const file = join(root, "data", "earnings.json");
   const raw = await readFile(file, "utf8");
-  return JSON.parse(raw);
+  return windowUpcoming(JSON.parse(raw));
 }
 
 function safeFile(urlPath) {

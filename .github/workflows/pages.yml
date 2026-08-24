@@ -25,7 +25,7 @@ jobs:
       - name: Stage static site
         run: |
           mkdir -p _site
-          cp index.html styles.css app.js providers.js company.js favicon.svg .nojekyll _site/
+          cp index.html styles.css app.js providers.js company.js dates.js favicon.svg .nojekyll _site/
           cp -R data _site/data
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

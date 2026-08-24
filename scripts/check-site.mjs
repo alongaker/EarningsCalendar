@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
+import { marketDateIso, windowUpcoming } from "../dates.js";
 import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, formatEps, formatCompanyName } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
 
@@ -34,6 +35,23 @@ assert(formatMarketCap(row.marketCap) === "$5.25T", "format trillions");
 assert(parseMarketCap("N/A") === 0, "N/A market cap");
 assert(mapTime("amc") === "after-close", "map amc timing");
 assert(mapTime("08:00") === "before-open", "map morning clock");
+assert(marketDateIso(new Date("2026-08-24T16:00:00Z")) === "2026-08-24", "afternoon ET is still Aug 24");
+assert(marketDateIso(new Date("2026-08-25T03:30:00Z")) === "2026-08-24", "late evening ET stays prior date");
+assert(marketDateIso(new Date("2026-08-25T04:30:00Z")) === "2026-08-25", "after midnight ET rolls forward");
+const windowed = windowUpcoming(
+  {
+    startDate: "2026-08-21",
+    endDate: "2026-08-26",
+    calls: [
+      { date: "2026-08-21", symbol: "OLD" },
+      { date: "2026-08-24", symbol: "NOW" },
+      { date: "2026-08-26", symbol: "LATER" },
+    ],
+  },
+  "2026-08-24"
+);
+assert(windowed.startDate === "2026-08-24", "window start is today");
+assert(windowed.count === 2 && windowed.calls[0].symbol === "NOW", "window drops past dates");
 
 const merged = mergeCalls(
   [
@@ -262,6 +280,10 @@ try {
   const snap = await fetch("http://127.0.0.1:3456/api/earnings?live=0");
   const snapJson = await snap.json();
   assert(snap.ok && snapJson.count > 0, "snapshot API");
+  assert(
+    snapJson.calls.every((c) => c.date >= marketDateIso()),
+    "snapshot API hides dates before today"
+  );
   const missing = await fetch("http://127.0.0.1:3456/api/provider/finnhub", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
