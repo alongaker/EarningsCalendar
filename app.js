@@ -621,9 +621,9 @@ function renderBoard(calls) {
               <div class="company hide-sm">${escapeHtml(formatFiscalPeriod(call.fiscalQuarterEnding))}</div>
             </td>
             <td class="num">${escapeHtml(call.marketCapDisplay || "—")}</td>
-            <td class="num hide-sm">${epsCell(call)}</td>
             <td class="num hide-sm">${escapeHtml(call.lastRevenueDisplay || "—")}</td>
             <td class="num hide-sm">${escapeHtml(call.revenueEstimateDisplay || "—")}</td>
+            <td class="num hide-sm">${epsCell(call)}</td>
           </tr>`;
         })
         .join("");
@@ -639,9 +639,9 @@ function renderBoard(calls) {
               <th>Ticker</th>
               <th>Company</th>
               ${sortHeader("cap", "Cap", false)}
-              ${sortHeader("eps", "EPS est.", true)}
               ${sortHeader("lastrev", "Last rev", true)}
               ${sortHeader("rev", "Rev est.", true)}
+              ${sortHeader("eps", "EPS est.", true)}
             </tr>
           </thead>
           <tbody>${body}</tbody>
