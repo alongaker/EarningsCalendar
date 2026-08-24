@@ -355,6 +355,7 @@ const html = await readFile(join(root, "index.html"), "utf8");
 assert(html.includes("Earnings Calendar"), "index has title");
 assert(html.includes("API Key Management"), "index has API keys page");
 assert(html.includes("filter-toggle"), "index has collapsible filter bar");
+assert(html.includes("Market Cap"), "filter panel labels market cap");
 assert(html.includes("Drag to rank extras"), "index explains extra-source ranking");
 assert(html.includes("view-company"), "index has company view");
 assert(html.includes("./app.js"), "index loads app.js");

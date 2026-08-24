@@ -80,16 +80,22 @@
               spellcheck="false"
             />
           </label>
-          <div class="filters" role="group" aria-label="Call time">
-            <button class="chip is-on" data-time="all" type="button">All times</button>
-            <button class="chip" data-time="before-open" type="button">Before open</button>
-            <button class="chip" data-time="after-close" type="button">After close</button>
+          <div class="filter-group">
+            <p class="filter-group__title" id="filter-time-label">Time</p>
+            <div class="filters" role="group" aria-labelledby="filter-time-label">
+              <button class="chip is-on" data-time="all" type="button">All times</button>
+              <button class="chip" data-time="before-open" type="button">Before open</button>
+              <button class="chip" data-time="after-close" type="button">After close</button>
+            </div>
           </div>
-          <div class="filters" role="group" aria-label="Market cap">
-            <button class="chip is-on" data-cap="0" type="button">Any size</button>
-            <button class="chip" data-cap="1000000000" type="button">$1B+</button>
-            <button class="chip" data-cap="10000000000" type="button">$10B+</button>
-            <button class="chip" data-cap="100000000000" type="button">$100B+</button>
+          <div class="filter-group">
+            <p class="filter-group__title" id="filter-cap-label">Market Cap</p>
+            <div class="filters" role="group" aria-labelledby="filter-cap-label">
+              <button class="chip is-on" data-cap="0" type="button">Any size</button>
+              <button class="chip" data-cap="1000000000" type="button">$1B+</button>
+              <button class="chip" data-cap="10000000000" type="button">$10B+</button>
+              <button class="chip" data-cap="100000000000" type="button">$100B+</button>
+            </div>
           </div>
         </div>
       </section>

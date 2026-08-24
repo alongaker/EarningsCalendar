@@ -316,13 +316,27 @@ h1 {
 
 .filter-panel {
   display: grid;
-  gap: 12px;
-  padding: 12px 12px 12px;
+  gap: 14px;
+  padding: 12px;
   border-top: 1px solid var(--rule);
 }
 
 .filter-panel[hidden] {
   display: none;
+}
+
+.filter-group {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-group__title {
+  margin: 0;
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .search {
