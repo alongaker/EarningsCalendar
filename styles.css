@@ -464,6 +464,34 @@ input[type="search"]:focus {
   border-collapse: collapse;
 }
 
+.board .table {
+  table-layout: fixed;
+}
+
+.board .table th:nth-child(1),
+.board .table td:nth-child(1) {
+  width: 9.6rem;
+  white-space: nowrap;
+}
+
+.board .table th:nth-child(2),
+.board .table td:nth-child(2) {
+  width: 6rem;
+  white-space: nowrap;
+}
+
+.board .table th:nth-child(4),
+.board .table td:nth-child(4),
+.board .table th:nth-child(5),
+.board .table td:nth-child(5),
+.board .table th:nth-child(6),
+.board .table td:nth-child(6),
+.board .table th:nth-child(7),
+.board .table td:nth-child(7) {
+  width: 6.6rem;
+  white-space: nowrap;
+}
+
 .table th {
   padding: 6px 10px;
   color: var(--mute);
@@ -477,6 +505,11 @@ input[type="search"]:focus {
 
 .table th.num {
   text-align: right;
+}
+
+.table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .sort-btn {
