@@ -53,6 +53,7 @@ const els = {
   keyFormStatus: document.querySelector("#key-form-status"),
   navToggle: document.querySelector("#nav-toggle"),
   navKeysText: document.querySelector("#nav-keys-text"),
+  navLinks: document.querySelector("#sidenav-nav"),
 };
 
 function loadKeys() {
@@ -482,6 +483,10 @@ function applyNavCollapsed(collapsed) {
   els.navToggle.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
   const label = els.navToggle.querySelector(".sidenav__toggle-text");
   if (label) label.textContent = collapsed ? "Expand" : "Collapse";
+  if (els.navLinks) {
+    els.navLinks.hidden = collapsed;
+    els.navLinks.setAttribute("aria-hidden", collapsed ? "true" : "false");
+  }
 }
 
 function applyHash() {
