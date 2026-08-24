@@ -179,7 +179,9 @@ assert(formatCompanyName("Boxabl, Inc. Common Stock") === "Boxabl, Inc.", "drop 
 assert(stripCompanySuffixes("ChronoScale Holdings Corporation") === "ChronoScale Holdings", "drop Corporation");
 assert(stripCompanySuffixes("NAPCO Security Technologies, Inc.") === "NAPCO Security Technologies", "drop Inc keep Technologies");
 assert(stripCompanySuffixes("CBAK Energy Technology Limited") === "CBAK Energy Technology", "drop Limited");
-assert(stripCompanySuffixes("Apartment Investment and Management Company") === "Apartment Investment and Management", "drop Company");
+assert(stripCompanySuffixes("Apartment Investment and Management Company") === "Apartment Investment and Management Company", "keep Company");
+assert(stripCompanySuffixes("The Marzetti Co") === "The Marzetti Company", "write Co as Company");
+assert(stripCompanySuffixes("The Marzetti Company") === "The Marzetti Company", "Company stays Company");
 assert(stripCompanySuffixes("Foo Incorporated") === "Foo", "drop Incorporated");
 assert(stripCompanySuffixes("Bank of America Corp") === "Bank of America", "drop Corp");
 assert(stripCompanySuffixes("Heico Corporation, Inc.") === "Heico", "drop stacked legal suffixes");

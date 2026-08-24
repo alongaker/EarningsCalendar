@@ -224,13 +224,14 @@ export function stripCompanySuffixes(name) {
   let s = formatCompanyName(name);
   if (!s) return "";
   const suffix =
-    /(?:,|\s)+(incorporated|inc|corporations|corporation|corp|limited|ltd|company|co|llc|l\.l\.c|plc|p\.l\.c|llp|gmbh|n\.v|s\.a|nv|sa|ag|lp)\.?$/i;
+    /(?:,|\s)+(incorporated|inc|corporations|corporation|corp|limited|ltd|llc|l\.l\.c|plc|p\.l\.c|llp|gmbh|n\.v|s\.a|nv|sa|ag|lp)\.?$/i;
   for (;;) {
     const next = s.replace(suffix, "").replace(/[,\s./]+$/g, "").trim();
-    if (next === s) return s;
+    if (next === s) break;
     s = next;
     if (!s) return "";
   }
+  return s.replace(/(?:,|\s)+co\.?$/i, " Company").replace(/\s+/g, " ").trim();
 }
 
 export function formatEps(value) {
