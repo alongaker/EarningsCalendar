@@ -19,11 +19,30 @@
   </head>
   <body>
     <div class="shell">
-    <aside class="sidenav" aria-label="Site">
-      <p class="sidenav__brand">Earnings Calendar</p>
+    <aside class="sidenav" id="sidenav" aria-label="Site">
+      <div class="sidenav__top">
+        <p class="sidenav__brand">Earnings Calendar</p>
+        <button
+          class="sidenav__toggle"
+          id="nav-toggle"
+          type="button"
+          aria-controls="sidenav"
+          aria-expanded="true"
+          title="Collapse sidebar"
+        >
+          <span class="sidenav__toggle-mark" aria-hidden="true"></span>
+          <span class="sidenav__toggle-text">Collapse</span>
+        </button>
+      </div>
       <nav class="sidenav__nav">
-        <a class="sidenav__link is-on" id="nav-calendar" href="#calendar" data-nav="calendar">Calendar</a>
-        <a class="sidenav__link" id="nav-keys" href="#keys" data-nav="keys">API keys</a>
+        <a class="sidenav__link is-on" id="nav-calendar" href="#calendar" data-nav="calendar" title="Calendar">
+          <span class="sidenav__mark" aria-hidden="true">C</span>
+          <span class="sidenav__text">Calendar</span>
+        </a>
+        <a class="sidenav__link" id="nav-keys" href="#keys" data-nav="keys" title="API keys">
+          <span class="sidenav__mark" aria-hidden="true">K</span>
+          <span class="sidenav__text" id="nav-keys-text">API keys</span>
+        </a>
       </nav>
     </aside>
     <div class="shell__main">
@@ -115,6 +134,12 @@
     </div>
     </div>
 
+    <script>
+      try {
+        const saved = JSON.parse(localStorage.getItem("earningsCalendar.sidenav.v1") || "{}");
+        if (saved.collapsed) document.documentElement.classList.add("nav-collapsed");
+      } catch {}
+    </script>
     <script src="./app.js" type="module"></script>
   </body>
 </html>

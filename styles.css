@@ -53,6 +53,11 @@ body::before {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns 160ms ease;
+}
+
+html.nav-collapsed .shell {
+  grid-template-columns: 64px minmax(0, 1fr);
 }
 
 .sidenav {
@@ -60,18 +65,60 @@ body::before {
   top: 0;
   align-self: start;
   min-height: 100vh;
-  padding: 28px 18px 32px;
+  padding: 20px 14px 32px;
   border-right: 1px solid var(--rule);
   background: var(--ink-2);
+  overflow: hidden;
+}
+
+.sidenav__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 18px;
 }
 
 .sidenav__brand {
-  margin: 0 0 22px;
+  margin: 0;
   font-family: var(--serif);
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.15;
+}
+
+.sidenav__toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.sidenav__toggle:hover {
+  color: var(--cream);
+  border-color: var(--gold);
+}
+
+.sidenav__toggle-mark {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+html.nav-collapsed .sidenav__toggle-mark {
+  transform: rotate(-135deg);
 }
 
 .sidenav__nav {
@@ -80,13 +127,23 @@ body::before {
 }
 
 .sidenav__link {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 8px 10px;
   border-radius: 4px;
   color: var(--mute);
   font-family: var(--mono);
   font-size: 13px;
   text-decoration: none;
+  white-space: nowrap;
+}
+
+.sidenav__mark {
+  display: none;
+  width: 1.4em;
+  text-align: center;
+  font-weight: 600;
 }
 
 .sidenav__link:hover,
@@ -97,6 +154,38 @@ body::before {
 
 .sidenav__link.is-on {
   box-shadow: inset 2px 0 0 var(--gold);
+}
+
+html.nav-collapsed .sidenav {
+  padding-inline: 10px;
+}
+
+html.nav-collapsed .sidenav__brand,
+html.nav-collapsed .sidenav__text,
+html.nav-collapsed .sidenav__toggle-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+html.nav-collapsed .sidenav__top {
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+html.nav-collapsed .sidenav__toggle {
+  padding: 8px;
+}
+
+html.nav-collapsed .sidenav__link {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+html.nav-collapsed .sidenav__mark {
+  display: block;
 }
 
 .shell__main {
@@ -711,7 +800,8 @@ code {
 }
 
 @media (max-width: 760px) {
-  .shell {
+  .shell,
+  html.nav-collapsed .shell {
     grid-template-columns: 1fr;
   }
 
@@ -725,6 +815,15 @@ code {
     padding: 16px 16px 0;
     border-right: 0;
     border-bottom: 1px solid var(--rule);
+    overflow: visible;
+  }
+
+  .sidenav__top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    flex: 1 1 auto;
   }
 
   .sidenav__brand {
@@ -735,6 +834,23 @@ code {
   .sidenav__nav {
     display: flex;
     gap: 4px;
+  }
+
+  html.nav-collapsed .sidenav__nav {
+    display: none;
+  }
+
+  html.nav-collapsed .sidenav__brand,
+  html.nav-collapsed .sidenav__toggle-text {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+
+  html.nav-collapsed .sidenav__mark {
+    display: none;
   }
 
   .sidenav__link.is-on {

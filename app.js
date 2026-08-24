@@ -19,6 +19,7 @@ const SOURCE_LABEL = {
 };
 
 const KEYS_STORAGE = "earningsCalendar.apiKeys.v1";
+const NAV_STORAGE = "earningsCalendar.sidenav.v1";
 
 const state = {
   base: null,
@@ -50,6 +51,8 @@ const els = {
   keyHint: document.querySelector("#key-hint"),
   keyList: document.querySelector("#key-list"),
   keyFormStatus: document.querySelector("#key-form-status"),
+  navToggle: document.querySelector("#nav-toggle"),
+  navKeysText: document.querySelector("#nav-keys-text"),
 };
 
 function loadKeys() {
@@ -150,9 +153,8 @@ function setView(tab, opts = {}) {
     link.classList.toggle("is-on", on);
     link.setAttribute("aria-current", on ? "page" : "false");
   });
-  const keysNav = document.querySelector("#nav-keys");
   const n = connectedCount();
-  if (keysNav) keysNav.textContent = n ? `API keys · ${n}` : "API keys";
+  if (els.navKeysText) els.navKeysText.textContent = n ? `API keys · ${n}` : "API keys";
   if (opts.updateHash !== false) {
     let hash = "#calendar";
     if (tab === "keys") hash = "#keys";
@@ -464,6 +466,22 @@ async function showCompany(symbol, date) {
       renderCompany(ticker, fallback);
     }
   }
+}
+
+function navCollapsed() {
+  return document.documentElement.classList.contains("nav-collapsed");
+}
+
+function applyNavCollapsed(collapsed) {
+  document.documentElement.classList.toggle("nav-collapsed", collapsed);
+  try {
+    localStorage.setItem(NAV_STORAGE, JSON.stringify({ collapsed }));
+  } catch {}
+  if (!els.navToggle) return;
+  els.navToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  els.navToggle.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+  const label = els.navToggle.querySelector(".sidenav__toggle-text");
+  if (label) label.textContent = collapsed ? "Expand" : "Collapse";
 }
 
 function applyHash() {
@@ -947,6 +965,8 @@ document.addEventListener("keydown", (event) => {
 
 applyHash();
 window.addEventListener("hashchange", applyHash);
+applyNavCollapsed(navCollapsed());
+els.navToggle?.addEventListener("click", () => applyNavCollapsed(!navCollapsed()));
 
 let marketDay = marketDateIso();
 let rollingDay = false;
