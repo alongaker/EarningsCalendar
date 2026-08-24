@@ -220,16 +220,17 @@ export function formatCompanyName(name) {
   });
 }
 
-export function abbreviateCompanyName(name) {
-  const s = formatCompanyName(name);
+export function stripCompanySuffixes(name) {
+  let s = formatCompanyName(name);
   if (!s) return "";
-  return s
-    .replace(/\bcorporations?\b\.?/gi, "Corp")
-    .replace(/\btechnologies\b\.?/gi, "Tech")
-    .replace(/\btechnology\b\.?/gi, "Tech")
-    .replace(/\blimited\b\.?/gi, "Ltd")
-    .replace(/\bincorporated\b\.?/gi, "Inc")
-    .replace(/\bcompany\b\.?/gi, "Co");
+  const suffix =
+    /(?:,|\s)+(incorporated|inc|corporations|corporation|corp|limited|ltd|company|co|llc|l\.l\.c|plc|p\.l\.c|llp|gmbh|n\.v|s\.a|nv|sa|ag|lp)\.?$/i;
+  for (;;) {
+    const next = s.replace(suffix, "").replace(/[,\s./]+$/g, "").trim();
+    if (next === s) return s;
+    s = next;
+    if (!s) return "";
+  }
 }
 
 export function formatEps(value) {
