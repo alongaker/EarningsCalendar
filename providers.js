@@ -240,6 +240,57 @@ export function formatRevenue(value) {
   return formatted === "—" ? "" : formatted;
 }
 
+const MONTH_NUM = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+};
+
+export function formatFiscalPeriod(value) {
+  const raw = String(value || "").trim();
+  if (!raw || /^(n\/?a|none|null|-|—)$/i.test(raw)) return "";
+
+  const quarter = raw.match(/\bQ([1-4])\b/i);
+  const year = raw.match(/\b(?:FY\s*)?(20\d{2}|19\d{2})\b/i);
+  if (quarter && year) return `Q${quarter[1]} ${year[1]}`;
+
+  const iso = raw.match(/^(20\d{2}|19\d{2})[-/](\d{1,2})(?:[-/]\d{1,2})?$/);
+  if (iso) {
+    const month = Number(iso[2]);
+    if (month >= 1 && month <= 12) return `Q${Math.ceil(month / 3)} ${iso[1]}`;
+    return "";
+  }
+
+  const named = raw.match(/^([A-Za-z]{3,9})\s*[/\- ]\s*(20\d{2}|19\d{2})$/);
+  if (named) {
+    const month = MONTH_NUM[named[1].toLowerCase()];
+    if (month) return `Q${Math.ceil(month / 3)} ${named[2]}`;
+  }
+
+  return "";
+}
+
 export function mapTime(value) {
   if (!value && value !== 0) return "unspecified";
   const s = String(value).trim().toLowerCase();

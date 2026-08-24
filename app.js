@@ -1,4 +1,4 @@
-import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, rankedIds, reorderIds, formatCompanyName, formatEps, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
+import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, rankedIds, reorderIds, formatCompanyName, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls } from "./company.js";
 
 const TIME_LABEL = {
@@ -369,7 +369,7 @@ function renderCompany(symbol, profile) {
             <dl class="stat-grid">
               <div><dt>EPS est.</dt><dd>${dash(call.epsForecast)}</dd></div>
               <div><dt>Rev est.</dt><dd>${dash(call.revenueEstimateDisplay)}</dd></div>
-              <div><dt>Quarter</dt><dd>${dash(call.fiscalQuarterEnding)}</dd></div>
+              <div><dt>Quarter</dt><dd>${dash(formatFiscalPeriod(call.fiscalQuarterEnding))}</dd></div>
               <div><dt>Last year EPS</dt><dd>${dash(call.lastYearEPS)}</dd></div>
               <div><dt>Market cap</dt><dd>${dash(callCap)}</dd></div>
             </dl>
@@ -607,7 +607,7 @@ function renderBoard(calls) {
             <td class="symbol">${escapeHtml(call.symbol)}</td>
             <td>
               <div class="name-link">${escapeHtml(displayName(call.name) || "—")}</div>
-              <div class="company hide-sm">${escapeHtml(call.fiscalQuarterEnding || "")}</div>
+              <div class="company hide-sm">${escapeHtml(formatFiscalPeriod(call.fiscalQuarterEnding))}</div>
             </td>
             <td class="num">${escapeHtml(call.marketCapDisplay || "—")}</td>
             <td class="num hide-sm">${epsCell(call)}</td>
