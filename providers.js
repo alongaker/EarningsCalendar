@@ -60,9 +60,28 @@ export function isOperatingCompany(name) {
   return !NON_OPERATING_NAME.test(n);
 }
 
+export function isPlaceholderName(name, symbol) {
+  const n = String(name || "").trim();
+  if (!n || n === "—" || n === "-") return true;
+  if (/^(n\/a|na|none|null|unknown|undefined)$/i.test(n)) return true;
+  if (/symbol\s+not\s+(found|exist|exists)\b/i.test(n)) return true;
+  if (/^not\s+(found|available|exist|exists)\b/i.test(n)) return true;
+  const ticker = String(symbol || "").trim();
+  if (ticker && n.toUpperCase() === ticker.toUpperCase()) return true;
+  return false;
+}
+
+export function keepCalendarRow(call) {
+  if (!call?.symbol || !call?.date) return false;
+  if (call.unlisted) return false;
+  if (!isOperatingCompany(call.name)) return false;
+  if (isPlaceholderName(call.name, call.symbol)) return false;
+  return true;
+}
+
 export function windowUpcoming(snap, today = marketDateIso()) {
   const calls = (snap?.calls || []).filter(
-    (call) => call.date >= today && isOperatingCompany(call.name)
+    (call) => call.date >= today && keepCalendarRow(call)
   );
   return {
     ...snap,

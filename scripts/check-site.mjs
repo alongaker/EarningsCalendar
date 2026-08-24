@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, formatEps, formatCompanyName, marketDateIso, windowUpcoming, isOperatingCompany } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, formatEps, formatCompanyName, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -42,9 +42,9 @@ const windowed = windowUpcoming(
     startDate: "2026-08-21",
     endDate: "2026-08-26",
     calls: [
-      { date: "2026-08-21", symbol: "OLD" },
-      { date: "2026-08-24", symbol: "NOW" },
-      { date: "2026-08-26", symbol: "LATER" },
+      { date: "2026-08-21", symbol: "OLD", name: "Old Co" },
+      { date: "2026-08-24", symbol: "NOW", name: "Now Co" },
+      { date: "2026-08-26", symbol: "LATER", name: "Later Co" },
     ],
   },
   "2026-08-24"
@@ -175,6 +175,11 @@ assert(!isOperatingCompany("PIMCO Corporate Opportunity Fund"), "drop funds");
 assert(!isOperatingCompany("American Exceptionalism Acquisition Corp. A"), "drop SPACs");
 assert(!isOperatingCompany("North European Oil Royality Trust"), "drop royalty trusts");
 assert(isOperatingCompany("InnSuites Hospitality Trust"), "keep operating REITs");
+assert(isPlaceholderName("", "ZZZ"), "empty name is a placeholder");
+assert(isPlaceholderName("Symbol not exists", "ZZZ"), "nasdaq missing-symbol message");
+assert(isPlaceholderName("ZZZ", "ZZZ"), "ticker used as name is a placeholder");
+assert(!keepCalendarRow({ date: "2026-08-26", symbol: "ZZZ", name: "" }), "drop nameless rows");
+assert(keepCalendarRow({ date: "2026-08-26", symbol: "NVDA", name: "NVIDIA Corporation" }), "keep named rows");
 
 const csv = parseCsv("symbol,name,reportDate,estimate\nAAPL,Apple Inc,2026-08-21,1.5");
 assert(normalizeAlphaVantage(csv[0]).symbol === "AAPL", "alpha csv normalize");
@@ -243,6 +248,22 @@ const filled = await enrichSparseCalls(
 assert(filled[0].marketCap === 4000000000000, "enrich fills market cap from quote");
 assert(filled[0].name === "NVIDIA Corporation", "enrich fills company name");
 assert(filled[0].marketCapDisplay === "$4.00T", "enrich formats market cap");
+
+const gone = await enrichSparseCalls(
+  [
+    {
+      date: "2026-08-26",
+      symbol: "ZZZZ",
+      name: "",
+      marketCap: 0,
+      marketCapDisplay: "—",
+    },
+  ],
+  {
+    fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({}) }),
+  }
+);
+assert(gone.length === 0, "drop tickers Nasdaq does not recognize");
 
 const html = await readFile(join(root, "index.html"), "utf8");
 assert(html.includes("Earnings Calendar"), "index has title");

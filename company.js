@@ -1,4 +1,4 @@
-import { formatCompanyName, formatEps, canonicalSymbol, parseMarketCap, formatMarketCap } from "./providers.js";
+import { formatCompanyName, formatEps, canonicalSymbol, parseMarketCap, formatMarketCap, keepCalendarRow, isPlaceholderName } from "./providers.js";
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
@@ -232,8 +232,13 @@ function applyQuotes(calls, quotes) {
   return calls.map((call) => {
     const quote = quotes.get(call.symbol) || quotes.get(canonicalSymbol(call.symbol));
     const name = formatCompanyName(call.name || quote?.name || "");
-    if (!quote) {
-      return name !== call.name ? { ...call, name } : call;
+    if (!quote || quote.missing) {
+      const next = {
+        ...call,
+        name,
+        unlisted: Boolean(quote?.missing) && isPlaceholderName(name, call.symbol),
+      };
+      return next.name !== call.name || next.unlisted !== call.unlisted ? next : call;
     }
     const marketCap = call.marketCap || quote.marketCap || 0;
     return {
@@ -242,6 +247,7 @@ function applyQuotes(calls, quotes) {
       marketCap,
       marketCapDisplay: call.marketCap ? call.marketCapDisplay : quote.marketCapDisplay || "—",
       lastEpsDisplay: call.lastEpsDisplay || quote.lastEpsDisplay || "",
+      unlisted: false,
     };
   });
 }
@@ -280,19 +286,18 @@ export async function enrichSparseCalls(
   }
 
   if (!missing.length) {
-    const named = applyQuotes(calls, new Map());
-    return named.every((c, i) => c === calls[i]) ? calls : named;
+    return calls.filter(keepCalendarRow);
   }
 
   const quotes = new Map();
   let done = 0;
   await mapPool(missing, 5, async (symbol) => {
     const quote = await lookupQuote(symbol, { fetchImpl, withEps: wantEps.has(symbol) });
-    if (quote) quotes.set(symbol, quote);
+    quotes.set(symbol, quote || { missing: true });
     done += 1;
-    if (onProgress && done % 10 === 0) onProgress(applyQuotes(calls, quotes));
+    if (onProgress && done % 10 === 0) onProgress(applyQuotes(calls, quotes).filter(keepCalendarRow));
   });
-  return applyQuotes(calls, quotes);
+  return applyQuotes(calls, quotes).filter(keepCalendarRow);
 }
 
 function nonemptyField(value) {
