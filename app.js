@@ -1,5 +1,5 @@
 import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
-import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls } from "./company.js";
+import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue } from "./company.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -181,6 +181,11 @@ function metricValue(call, key) {
     const n = Number(call.revenueEstimate);
     if (n > 0) return n;
     return parseMetric(call.revenueEstimateDisplay);
+  }
+  if (key === "lastrev") {
+    const n = Number(call.lastRevenue);
+    if (n > 0) return n;
+    return parseMetric(call.lastRevenueDisplay);
   }
   return null;
 }
@@ -372,6 +377,7 @@ function renderCompany(symbol, profile) {
             <p><span class="time-badge ${call.time}">${TIME_LABEL[call.time]}</span> · ${longDate(call.date)}</p>
             <dl class="stat-grid">
               <div><dt>EPS est.</dt><dd>${dash(call.epsForecast)}</dd></div>
+              <div><dt>Last rev</dt><dd>${dash(call.lastRevenueDisplay)}</dd></div>
               <div><dt>Rev est.</dt><dd>${dash(call.revenueEstimateDisplay)}</dd></div>
               <div><dt>Quarter</dt><dd>${dash(formatFiscalPeriod(call.fiscalQuarterEnding))}</dd></div>
               <div><dt>Last year EPS</dt><dd>${dash(call.lastYearEPS)}</dd></div>
@@ -463,6 +469,7 @@ function renderCompany(symbol, profile) {
           <div><dt>Market cap</dt><dd>${dash(capDisplay)}</dd></div>
           <div><dt>EPS est.</dt><dd>${dash(selected?.epsForecast)}</dd></div>
           <div><dt>Last EPS</dt><dd>${dash(lastEarn ? formatEps(lastEarn.eps) : selected?.lastEpsDisplay || selected?.lastYearEPS)}</dd></div>
+          <div><dt>Last rev</dt><dd>${dash(selected?.lastRevenueDisplay)}</dd></div>
           <div><dt>Last surprise</dt><dd>${lastEarn && lastEarn.surprise !== "" && lastEarn.surprise != null ? `${escapeHtml(lastEarn.surprise)}%` : "—"}</dd></div>
           <div><dt>Latest filing</dt><dd>${filingCell || "—"}</dd></div>
           <div><dt>52-week</dt><dd>${dash(profile.week52)}</dd></div>
@@ -615,6 +622,7 @@ function renderBoard(calls) {
             </td>
             <td class="num">${escapeHtml(call.marketCapDisplay || "—")}</td>
             <td class="num hide-sm">${epsCell(call)}</td>
+            <td class="num hide-sm">${escapeHtml(call.lastRevenueDisplay || "—")}</td>
             <td class="num hide-sm">${escapeHtml(call.revenueEstimateDisplay || "—")}</td>
           </tr>`;
         })
@@ -632,6 +640,7 @@ function renderBoard(calls) {
               <th>Company</th>
               ${sortHeader("cap", "Cap", false)}
               ${sortHeader("eps", "EPS est.", true)}
+              ${sortHeader("lastrev", "Last rev", true)}
               ${sortHeader("rev", "Rev est.", true)}
             </tr>
           </thead>
@@ -915,8 +924,13 @@ async function applyCalendar(base, { refreshKeys = true } = {}) {
       if (state.tab === "calendar") render();
     },
   });
-  if (filled === named.calls) return;
-  state.snapshot = { ...named, calls: filled, count: filled.length };
+  const withRev = await enrichLastRevenue(filled, {
+    onProgress: (calls) => {
+      state.snapshot = { ...named, calls, count: calls.length };
+      if (state.tab === "calendar") render();
+    },
+  });
+  state.snapshot = { ...named, calls: withRev, count: withRev.length };
   if (state.tab === "calendar") render();
   else if (state.tab === "company" && state.companySymbol) {
     showCompany(state.companySymbol, state.companyDate);

@@ -9,6 +9,7 @@ import { fetchProvider, providerIds, windowUpcoming, marketDateIso } from "./pro
 import {
   fetchCompanyBundle,
   fetchNasdaqQuoteLite,
+  fetchLastQuarterRevenue,
   isSymbol,
 } from "./company.js";
 
@@ -177,6 +178,22 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  const revenueMatch = url.pathname.match(/^\/api\/revenue\/([^/]+)$/);
+  if (revenueMatch && req.method === "GET") {
+    const symbol = decodeURIComponent(revenueMatch[1] || "").toUpperCase();
+    if (!isSymbol(symbol)) {
+      sendJson(res, 400, { error: "Invalid symbol" });
+      return;
+    }
+    try {
+      const data = await fetchLastQuarterRevenue(symbol);
+      sendJson(res, 200, { symbol, ...data });
+    } catch (err) {
+      sendJson(res, 502, { error: err.message || "Revenue lookup failed" });
+    }
+    return;
+  }
+
   const providerMatch = url.pathname.match(/^\/api\/provider\/([a-z]+)$/);
   if (providerMatch && req.method === "POST") {
     const id = providerMatch[1];
@@ -214,4 +231,5 @@ server.listen(PORT, HOST, () => {
   console.log("Provider: POST /api/provider/{finnhub|fmp|alphavantage|apininjas|eodhd|twelvedata}");
   console.log("Company:  GET  /api/company/NVDA");
   console.log("Quote:    GET  /api/quote/NVDA");
+  console.log("Revenue: GET  /api/revenue/AAPL");
 });

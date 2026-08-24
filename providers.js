@@ -338,6 +338,8 @@ function baseCall(partial) {
     lastYearReportDate: partial.lastYearReportDate || "",
     revenueEstimate,
     revenueEstimateDisplay: partial.revenueEstimateDisplay || formatRevenue(revenueEstimate),
+    lastRevenue: Number(partial.lastRevenue) || 0,
+    lastRevenueDisplay: partial.lastRevenueDisplay || "",
     epsActual: partial.epsActual || "",
     sources: partial.sources || [],
   };
@@ -511,6 +513,10 @@ function mergePair(prev, call) {
     revenueEstimateDisplay: nonempty(prev.revenueEstimateDisplay)
       ? prev.revenueEstimateDisplay
       : call.revenueEstimateDisplay,
+    lastRevenue: prev.lastRevenue || call.lastRevenue,
+    lastRevenueDisplay: nonempty(prev.lastRevenueDisplay)
+      ? prev.lastRevenueDisplay
+      : call.lastRevenueDisplay,
     epsActual: nonempty(prev.epsActual) ? prev.epsActual : call.epsActual,
     sources: [...new Set([...(prev.sources || []), ...(call.sources || [])])],
   };

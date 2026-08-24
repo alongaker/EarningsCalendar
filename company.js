@@ -252,6 +252,121 @@ function applyQuotes(calls, quotes) {
   });
 }
 
+export function parseRevenueCell(value) {
+  const s = String(value || "").trim();
+  if (!s || /^(n\/?a|na|none|null|-|—)$/i.test(s)) return 0;
+  const match = s.replace(/,/g, "").match(/^\$?\(?(-?[\d.]+)\)?\s*(?:\(([kmbt])\))?$/i);
+  if (!match) return 0;
+  const n = Number(match[1]);
+  if (!Number.isFinite(n) || n === 0) return 0;
+  const mul = { k: 1e3, m: 1e6, b: 1e9, t: 1e12 }[match[2]?.toLowerCase()] || 1;
+  return Math.abs(n) * mul;
+}
+
+export function lastQuarterRevenueFromTable(table) {
+  const rows = table?.rows || [];
+  let last = 0;
+  for (const row of rows) {
+    const label = String(row.value1 || "").trim();
+    if (/^totals$/i.test(label)) break;
+    if (!/^revenue$/i.test(label)) continue;
+    const current = parseRevenueCell(row.value2);
+    if (current) last = current;
+  }
+  if (last) return last;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const label = String(rows[i].value1 || "").trim();
+    if (/^totals$/i.test(label) || !/^revenue$/i.test(label)) continue;
+    const prior = parseRevenueCell(rows[i].value3) || parseRevenueCell(rows[i].value2);
+    if (prior) return prior;
+  }
+  return 0;
+}
+
+export async function fetchLastQuarterRevenue(symbol, { fetchImpl = fetch } = {}) {
+  const ticker = canonicalSymbol(symbol);
+  if (!isSymbol(ticker)) return { lastRevenue: 0, lastRevenueDisplay: "" };
+  try {
+    const data = await nasdaqJson(`/api/company/${encodeURIComponent(ticker)}/revenue`, {
+      fetchImpl,
+    });
+    const lastRevenue = lastQuarterRevenueFromTable(data?.revenueTable);
+    return {
+      lastRevenue,
+      lastRevenueDisplay: lastRevenue ? formatMarketCap(lastRevenue) : "",
+    };
+  } catch {
+    return { lastRevenue: 0, lastRevenueDisplay: "" };
+  }
+}
+
+function applyLastRevenue(calls, found) {
+  return calls.map((call) => {
+    const hit = found.get(call.symbol) || found.get(canonicalSymbol(call.symbol));
+    if (!hit?.lastRevenue) return call;
+    if (call.lastRevenue) return call;
+    return {
+      ...call,
+      lastRevenue: hit.lastRevenue,
+      lastRevenueDisplay: hit.lastRevenueDisplay,
+    };
+  });
+}
+
+const revenueCache = new Map();
+
+async function lookupRevenue(symbol, { fetchImpl } = {}) {
+  const ticker = canonicalSymbol(symbol);
+  const hit = revenueCache.get(ticker);
+  if (hit && Date.now() - hit.at < 6 * 60 * 60 * 1000) return hit.data;
+  try {
+    if (typeof window !== "undefined") {
+      const res = await fetch(`/api/revenue/${encodeURIComponent(ticker)}`, { cache: "no-store" });
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const payload = await res.json();
+        if (res.ok) {
+          const data = {
+            lastRevenue: Number(payload.lastRevenue) || 0,
+            lastRevenueDisplay: payload.lastRevenueDisplay || "",
+          };
+          revenueCache.set(ticker, { at: Date.now(), data });
+          return data;
+        }
+      }
+    }
+  } catch {
+    // Fall through to Nasdaq.
+  }
+  const data = await fetchLastQuarterRevenue(ticker, { fetchImpl });
+  revenueCache.set(ticker, { at: Date.now(), data });
+  return data;
+}
+
+export async function enrichLastRevenue(
+  calls,
+  { fetchImpl = fetch, onProgress } = {}
+) {
+  const symbols = [];
+  const seen = new Set();
+  for (const call of calls) {
+    if (seen.has(call.symbol) || call.lastRevenue) continue;
+    seen.add(call.symbol);
+    symbols.push(call.symbol);
+  }
+  if (!symbols.length) return calls;
+
+  const found = new Map();
+  let done = 0;
+  await mapPool(symbols, 4, async (symbol) => {
+    const data = await lookupRevenue(symbol, { fetchImpl });
+    if (data?.lastRevenue) found.set(symbol, data);
+    done += 1;
+    if (onProgress && done % 8 === 0) onProgress(applyLastRevenue(calls, found));
+  });
+  return applyLastRevenue(calls, found);
+}
+
 async function lookupQuote(symbol, { fetchImpl, withEps } = {}) {
   try {
     if (typeof window !== "undefined") {

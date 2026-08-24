@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
 import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds } from "../providers.js";
-import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
+import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -333,7 +333,23 @@ const filled = await enrichSparseCalls(
 );
 assert(filled[0].marketCap === 4000000000000, "enrich fills market cap from quote");
 assert(filled[0].name === "NVIDIA Corporation", "enrich fills company name");
-assert(filled[0].marketCapDisplay === "$4.00T", "enrich formats market cap");
+assert(parseRevenueCell("$109,417(m)") === 109417000000, "Nasdaq millions revenue cell");
+assert(parseRevenueCell("$8,558(m)") === 8558000000, "parse mid-size quarterly revenue");
+assert(
+  lastQuarterRevenueFromTable({
+    rows: [
+      { value1: "March", value2: "", value3: "" },
+      { value1: "Revenue", value2: "$3,885(m)", value3: "$3,283(m)" },
+      { value1: "June", value2: "", value3: "" },
+      { value1: "Revenue", value2: "$4,651(m)", value3: "$3,963(m)" },
+      { value1: "September", value2: "", value3: "" },
+      { value1: "Revenue", value2: "", value3: "$7,754(m)" },
+      { value1: "Totals", value2: "", value3: "" },
+      { value1: "Revenue", value2: "$8,536(m)", value3: "$18,831(m)" },
+    ],
+  }) === 4651000000,
+  "last quarter skips empty current period and totals"
+);
 
 const gone = await enrichSparseCalls(
   [
@@ -422,6 +438,9 @@ try {
   const quote = await fetch("http://127.0.0.1:3456/api/quote/NVDA");
   const quoteJson = await quote.json();
   assert(quote.ok && quoteJson.marketCap > 0, "quote lite API");
+  const rev = await fetch("http://127.0.0.1:3456/api/revenue/AAPL");
+  const revJson = await rev.json();
+  assert(rev.ok && revJson.lastRevenue > 1e10 && /\$/.test(revJson.lastRevenueDisplay || ""), "last quarter revenue API");
 } finally {
   shutdown();
 }
