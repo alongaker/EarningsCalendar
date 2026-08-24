@@ -383,6 +383,7 @@ assert(html.includes("Earnings Calendar"), "index has title");
 assert(html.includes("API Key Management"), "index has API keys page");
 assert(html.includes("filter-toggle"), "index has collapsible filter bar");
 assert(html.includes("Market Cap"), "filter panel labels market cap");
+assert(html.includes("$100M+") && html.includes("$250M+") && html.includes("$500M+"), "market cap chips include mid-size floors");
 assert(html.includes("Drag to rank extras"), "index explains extra-source ranking");
 assert(html.includes("view-company"), "index has company view");
 assert(html.includes("./app.js"), "index loads app.js");
