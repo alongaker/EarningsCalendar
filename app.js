@@ -8,16 +8,6 @@ const TIME_LABEL = {
   unspecified: "Time TBD",
 };
 
-const SOURCE_LABEL = {
-  nasdaq: "Nasdaq",
-  finnhub: "Finnhub",
-  fmp: "FMP",
-  alphavantage: "Alpha Vantage",
-  apininjas: "API Ninjas",
-  eodhd: "EODHD",
-  twelvedata: "Twelve Data",
-};
-
 const KEYS_STORAGE = "earningsCalendar.apiKeys.v1";
 const NAV_STORAGE = "earningsCalendar.sidenav.v1";
 
@@ -34,6 +24,8 @@ const state = {
   companySymbol: "",
   companyDate: "",
   companyCache: {},
+  sortKey: "",
+  sortDir: "desc",
 };
 
 const els = {
@@ -134,13 +126,59 @@ function groupByDate(calls) {
   return [...map.entries()];
 }
 
-function sourceNames(snap) {
-  const ids = new Set();
-  for (const call of snap.calls || []) {
-    for (const src of call.sources || ["nasdaq"]) ids.add(src);
+function parseMetric(value) {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw || raw === "—" || raw === "-" || /^n\/?a$/i.test(raw)) return null;
+  const neg = /^\(.*\)$/.test(raw);
+  const cleaned = raw.replace(/[(),$\s,]/g, "");
+  const match = cleaned.match(/^(-?[\d.]+)([KMBT])?$/i);
+  if (!match) {
+    const n = Number(cleaned.replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
   }
-  if (!ids.size) ids.add("nasdaq");
-  return [...ids].map((id) => SOURCE_LABEL[id] || id);
+  const n = Number(match[1]);
+  if (!Number.isFinite(n)) return null;
+  const mul = { K: 1e3, M: 1e6, B: 1e9, T: 1e12 }[match[2]?.toUpperCase()] || 1;
+  return (neg ? -n : n) * mul;
+}
+
+function metricValue(call, key) {
+  if (key === "cap") {
+    const n = Number(call.marketCap);
+    return n > 0 ? n : parseMetric(call.marketCapDisplay);
+  }
+  if (key === "eps") return parseMetric(call.epsForecast);
+  if (key === "rev") {
+    const n = Number(call.revenueEstimate);
+    if (n > 0) return n;
+    return parseMetric(call.revenueEstimateDisplay);
+  }
+  return null;
+}
+
+function sortRows(rows) {
+  const key = state.sortKey;
+  if (!key) return rows;
+  const sign = state.sortDir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av = metricValue(a, key);
+    const bv = metricValue(b, key);
+    if (av == null && bv == null) return a.symbol.localeCompare(b.symbol);
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (av !== bv) return (av - bv) * sign;
+    return a.symbol.localeCompare(b.symbol);
+  });
+}
+
+function sortHeader(key, label, hideSm = false) {
+  const on = state.sortKey === key;
+  const arrow = !on ? "" : state.sortDir === "asc" ? " ↑" : " ↓";
+  const aria = !on ? "none" : state.sortDir === "asc" ? "ascending" : "descending";
+  return `<th class="num${hideSm ? " hide-sm" : ""}" aria-sort="${aria}">
+    <button type="button" class="sort-btn ${on ? "is-on" : ""}" data-sort="${key}">${label}${arrow}</button>
+  </th>`;
 }
 
 function setView(tab, opts = {}) {
@@ -297,23 +335,18 @@ function renderCompany(symbol, profile) {
   const callCards = upcoming.length
     ? upcoming
         .map((call) => {
-          const extras = (call.sources || []).filter((s) => s !== "nasdaq");
-          const tags = extras
-            .map((s) => `<span class="tag">${escapeHtml(SOURCE_LABEL[s] || s)}</span>`)
-            .join("");
           const callCap =
             call.marketCapDisplay && call.marketCapDisplay !== "—"
               ? call.marketCapDisplay
               : capDisplay;
           return `<article class="upcoming-call">
             <h3>${call === selected ? "This call" : "Also on the calendar"}</h3>
-            <p><span class="time-badge ${call.time}">${TIME_LABEL[call.time]}</span> · ${longDate(call.date)}${tags}</p>
+            <p><span class="time-badge ${call.time}">${TIME_LABEL[call.time]}</span> · ${longDate(call.date)}</p>
             <dl class="stat-grid">
               <div><dt>EPS est.</dt><dd>${dash(call.epsForecast)}</dd></div>
               <div><dt>Rev est.</dt><dd>${dash(call.revenueEstimateDisplay)}</dd></div>
               <div><dt>Quarter</dt><dd>${dash(call.fiscalQuarterEnding)}</dd></div>
               <div><dt>Last year EPS</dt><dd>${dash(call.lastYearEPS)}</dd></div>
-              <div><dt># estimates</dt><dd>${dash(call.estimateCount || "")}</dd></div>
               <div><dt>Market cap</dt><dd>${dash(callCap)}</dd></div>
             </dl>
           </article>`;
@@ -541,26 +574,20 @@ function renderBoard(calls) {
     els.board.innerHTML = `<p class="empty">No calls match those filters.</p>`;
     return;
   }
-  const showRev = calls.some((c) => c.revenueEstimateDisplay);
   els.board.innerHTML = groupByDate(calls)
     .map(([date, rows]) => {
-      const body = rows
+      const body = sortRows(rows)
         .map((call) => {
-          const extras = (call.sources || []).filter((s) => s !== "nasdaq");
-          const tags = extras
-            .map((s) => `<span class="tag">${escapeHtml(SOURCE_LABEL[s] || s)}</span>`)
-            .join("");
           return `<tr class="call-row" data-symbol="${escapeHtml(call.symbol)}" data-date="${escapeHtml(call.date)}" tabindex="0" role="link" aria-label="${escapeHtml(call.symbol)} company details">
             <td><span class="time-badge ${call.time}">${TIME_LABEL[call.time]}</span></td>
             <td class="symbol">${escapeHtml(call.symbol)}</td>
             <td>
               <div class="name-link">${escapeHtml(displayName(call.name) || "—")}</div>
-              <div class="company hide-sm">${escapeHtml(call.fiscalQuarterEnding || "")}${tags ? ` ${tags}` : ""}</div>
+              <div class="company hide-sm">${escapeHtml(call.fiscalQuarterEnding || "")}</div>
             </td>
             <td class="num">${escapeHtml(call.marketCapDisplay || "—")}</td>
             <td class="num hide-sm">${epsCell(call)}</td>
-            ${showRev ? `<td class="num hide-sm">${escapeHtml(call.revenueEstimateDisplay || "—")}</td>` : ""}
-            <td class="num hide-sm">${call.estimateCount || "—"}</td>
+            <td class="num hide-sm">${escapeHtml(call.revenueEstimateDisplay || "—")}</td>
           </tr>`;
         })
         .join("");
@@ -575,10 +602,9 @@ function renderBoard(calls) {
               <th>Time</th>
               <th>Ticker</th>
               <th>Company</th>
-              <th>Cap</th>
-              <th class="hide-sm">EPS est.</th>
-              ${showRev ? `<th class="hide-sm">Rev est.</th>` : ""}
-              <th class="hide-sm"># est.</th>
+              ${sortHeader("cap", "Cap", false)}
+              ${sortHeader("eps", "EPS est.", true)}
+              ${sortHeader("rev", "Rev est.", true)}
             </tr>
           </thead>
           <tbody>${body}</tbody>
@@ -723,10 +749,11 @@ function render() {
       }).format(generated)
     : "just now";
   els.asOf.textContent = `${snap.count} calls · ${snap.startDate} to ${snap.endDate} · updated ${when}`;
-  const names = sourceNames(snap);
   els.source.textContent = snap.warning
-    ? `${names.join(" · ")} · ${snap.warning}`
-    : `${names.join(" · ")}${snap.mode === "live" ? " · live" : " · snapshot"}`;
+    ? snap.warning
+    : snap.mode === "live"
+      ? "Live calendar"
+      : "Saved snapshot";
   const weekCalls = snap.calls.filter((call) => {
     const q = state.query.trim().toLowerCase();
     if (q && !`${call.symbol} ${call.name}`.toLowerCase().includes(q)) return false;
@@ -876,6 +903,18 @@ document.querySelectorAll("[data-cap]").forEach((btn) => {
 
 
 els.board.addEventListener("click", (event) => {
+  const sortBtn = event.target.closest("[data-sort]");
+  if (sortBtn) {
+    const key = sortBtn.dataset.sort;
+    if (state.sortKey === key) {
+      state.sortDir = state.sortDir === "desc" ? "asc" : "desc";
+    } else {
+      state.sortKey = key;
+      state.sortDir = "desc";
+    }
+    render();
+    return;
+  }
   const row = event.target.closest("[data-symbol]");
   if (!row) return;
   setView("company", { symbol: row.dataset.symbol, date: row.dataset.date });
