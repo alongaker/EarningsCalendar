@@ -17,7 +17,7 @@ const state = {
   snapshot: null,
   query: "",
   time: "all",
-  minCap: 0,
+  minCap: 50_000_000,
   day: "all",
   tab: "calendar",
   keys: loadKeys(),
@@ -976,7 +976,7 @@ async function load() {
 }
 
 const CAP_LABEL = {
-  0: "",
+  50000000: "$50M+",
   1000000000: "$1B+",
   10000000000: "$10B+",
   100000000000: "$100B+",

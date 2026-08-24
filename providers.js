@@ -137,6 +137,8 @@ export function keepCalendarRow(call) {
   if (call.unlisted) return false;
   if (!isOperatingCompany(call.name)) return false;
   if (isPlaceholderName(call.name, call.symbol)) return false;
+  const cap = Number(call.marketCap) || 0;
+  if (cap < 50_000_000) return false;
   return true;
 }
 

@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { formatCompanyName, startOfMarketDay, parseMarketCap, formatMarketCap, isOperatingCompany } from "../providers.js";
+import { formatCompanyName, startOfMarketDay, parseMarketCap, formatMarketCap, isOperatingCompany, keepCalendarRow } from "../providers.js";
 import { enrichLastRevenue } from "../company.js";
 
 export { parseMarketCap, formatMarketCap };
@@ -60,7 +60,7 @@ export async function fetchDay(date, { fetchImpl = fetch } = {}) {
   const rows = payload?.data?.rows || [];
   return rows
     .map((row) => normalizeRow(row, date))
-    .filter((row) => row.symbol && isOperatingCompany(row.name));
+    .filter((row) => row.symbol && keepCalendarRow(row));
 }
 
 export async function fetchUpcoming({

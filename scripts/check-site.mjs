@@ -49,9 +49,9 @@ const windowed = windowUpcoming(
     startDate: "2026-08-21",
     endDate: "2026-08-26",
     calls: [
-      { date: "2026-08-21", symbol: "OLD", name: "Old Co" },
-      { date: "2026-08-24", symbol: "NOW", name: "Now Co" },
-      { date: "2026-08-26", symbol: "LATER", name: "Later Co" },
+      { date: "2026-08-21", symbol: "OLD", name: "Old Co", marketCap: 1e9 },
+      { date: "2026-08-24", symbol: "NOW", name: "Now Co", marketCap: 1e9 },
+      { date: "2026-08-26", symbol: "LATER", name: "Later Co", marketCap: 1e9 },
     ],
   },
   "2026-08-24"
@@ -202,7 +202,18 @@ assert(isPlaceholderName("", "ZZZ"), "empty name is a placeholder");
 assert(isPlaceholderName("Symbol not exists", "ZZZ"), "nasdaq missing-symbol message");
 assert(isPlaceholderName("ZZZ", "ZZZ"), "ticker used as name is a placeholder");
 assert(!keepCalendarRow({ date: "2026-08-26", symbol: "ZZZ", name: "" }), "drop nameless rows");
-assert(keepCalendarRow({ date: "2026-08-26", symbol: "NVDA", name: "NVIDIA Corporation" }), "keep named rows");
+assert(
+  keepCalendarRow({ date: "2026-08-26", symbol: "NVDA", name: "NVIDIA Corporation", marketCap: 4e12 }),
+  "keep named large-cap rows"
+);
+assert(
+  !keepCalendarRow({ date: "2026-08-26", symbol: "TINY", name: "Tiny Co", marketCap: 10_000_000 }),
+  "drop names under $50M"
+);
+assert(
+  !keepCalendarRow({ date: "2026-08-26", symbol: "NVDA", name: "NVIDIA Corporation", marketCap: 0 }),
+  "drop unknown market cap"
+);
 
 const ninja = normalizeApiNinjas({
   date: "2026-08-26",
