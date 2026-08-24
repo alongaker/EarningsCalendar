@@ -73,8 +73,9 @@ html.nav-collapsed .shell {
 
 .sidenav__top {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -85,8 +86,8 @@ html.nav-collapsed .shell {
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  line-height: 1.15;
-  text-align: center;
+  line-height: 1;
+  text-align: left;
 }
 
 .sidenav__toggle {
