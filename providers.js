@@ -113,7 +113,7 @@ export function startOfMarketDay(d = new Date(), timeZone = MARKET_TZ) {
 }
 
 const NON_OPERATING_NAME =
-  /\b(?:etfs?|etns?|exchange[\s-]*traded|closed[\s-]*end|mutual\s+funds?|blank\s+check|spacs?)\b|\bacquisition\s+(?:corp(?:oration)?|co\.?|company)\b|\b(?:royalt\w*|oil)\s+(?:\w+\s+)?trusts?\b|\bfunds?\b/i;
+  /\b(?:etfs?|etns?|exchange[\s-]*traded|closed[\s-]*end|mutual\s+funds?|blank\s+check|spacs?)\b|\bacquisition\s+(?:corp(?:oration)?|co\.?|company)\b|\btrusts?\b|\bfunds?\b|\bcredit\s+(?:opportunit\w*|companies|company|funds?|trusts?|income)\b|\bbusiness\s+development\s+compan(?:y|ies)\b/i;
 
 export function isOperatingCompany(name) {
   const n = String(name || "").trim();
