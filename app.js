@@ -1,4 +1,4 @@
-import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, rankedIds, reorderIds, formatCompanyName, clipCompanyName, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
+import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, rankedIds, reorderIds, formatCompanyName, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls } from "./company.js";
 
 const TIME_LABEL = {
@@ -606,7 +606,7 @@ function renderBoard(calls) {
             <td><span class="time-badge ${call.time}">${TIME_LABEL[call.time]}</span></td>
             <td class="symbol">${escapeHtml(call.symbol)}</td>
             <td>
-              <div class="name-link" title="${escapeHtml(displayName(call.name) || "")}">${escapeHtml(clipCompanyName(call.name) || "—")}</div>
+              <div class="name-link">${escapeHtml(displayName(call.name) || "—")}</div>
               <div class="company hide-sm">${escapeHtml(formatFiscalPeriod(call.fiscalQuarterEnding))}</div>
             </td>
             <td class="num">${escapeHtml(call.marketCapDisplay || "—")}</td>
