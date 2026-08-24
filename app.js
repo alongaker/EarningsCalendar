@@ -724,49 +724,43 @@ function renderKeysPage() {
       const s = state.statuses[provider.id];
       const tone = s?.state === "err" ? "is-err" : s?.state === "ok" ? "is-ok" : "";
       const rank = index + 1;
-      const rankLabel = index === 0 ? `${rank} · preferred extra` : `Priority ${rank}`;
       return `<article class="key-card" data-provider="${provider.id}" draggable="true">
-        <div class="key-card__rank">
-          <button
-            type="button"
-            class="key-card__handle"
-            data-rank-handle="${provider.id}"
-            draggable="true"
-            aria-label="${escapeHtml(provider.name)} priority ${rank}. Drag or use arrow keys to reorder"
-            title="Drag to rank"
-          >
-            <span aria-hidden="true">⋮⋮</span>
-          </button>
-          <p class="key-card__pos">${escapeHtml(rankLabel)}</p>
-        </div>
+        <button
+          type="button"
+          class="key-card__handle"
+          data-rank-handle="${provider.id}"
+          draggable="true"
+          aria-label="${escapeHtml(provider.name)} priority ${rank}. Drag or use arrow keys to reorder"
+          title="Drag to rank"
+        >${rank}</button>
         <div class="key-card__body">
           <div class="key-card__head">
             <h2>${escapeHtml(provider.name)}</h2>
             <p class="key-status ${tone}">${escapeHtml(statusLine(provider.id))}</p>
           </div>
-          <p class="key-links">
-            ${escapeHtml(maskKey(state.keys[provider.id]))}
-            ·
-            <a href="${provider.signup}" target="_blank" rel="noopener">Get a key</a>
-            ·
-            <a href="${provider.docs}" target="_blank" rel="noopener">API docs</a>
-          </p>
-          <label class="key-field">
-            <span>Update key</span>
+          <div class="key-card__row">
+            <p class="key-links">
+              ${escapeHtml(maskKey(state.keys[provider.id]))}
+              ·
+              <a href="${provider.signup}" target="_blank" rel="noopener">Get a key</a>
+              ·
+              <a href="${provider.docs}" target="_blank" rel="noopener">API docs</a>
+            </p>
             <input
               type="password"
               name="${provider.id}"
               draggable="false"
               autocomplete="off"
               spellcheck="false"
+              aria-label="Update ${escapeHtml(provider.name)} key"
               placeholder="${escapeHtml(provider.placeholder)}"
               value="${escapeHtml(state.keys[provider.id])}"
             />
-          </label>
-          <div class="key-actions">
-            <button type="button" data-save="${provider.id}">Update</button>
-            <button type="button" class="ghost" data-test="${provider.id}">Test</button>
-            <button type="button" class="ghost" data-clear="${provider.id}">Remove</button>
+            <div class="key-actions">
+              <button type="button" data-save="${provider.id}">Update</button>
+              <button type="button" class="ghost" data-test="${provider.id}">Test</button>
+              <button type="button" class="ghost" data-clear="${provider.id}">Remove</button>
+            </div>
           </div>
         </div>
       </article>`;
