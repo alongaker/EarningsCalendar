@@ -58,26 +58,39 @@
 
     <div id="view-calendar">
       <section class="toolbar" aria-label="Filters">
-        <label class="search">
-          <span class="search__label">Search</span>
-          <input
-            id="q"
-            type="search"
-            placeholder="Ticker or company — press /"
-            autocomplete="off"
-            spellcheck="false"
-          />
-        </label>
-        <div class="filters" role="group" aria-label="Call time">
-          <button class="chip is-on" data-time="all" type="button">All times</button>
-          <button class="chip" data-time="before-open" type="button">Before open</button>
-          <button class="chip" data-time="after-close" type="button">After close</button>
-        </div>
-        <div class="filters" role="group" aria-label="Market cap">
-          <button class="chip is-on" data-cap="0" type="button">Any size</button>
-          <button class="chip" data-cap="1000000000" type="button">$1B+</button>
-          <button class="chip" data-cap="10000000000" type="button">$10B+</button>
-          <button class="chip" data-cap="100000000000" type="button">$100B+</button>
+        <button
+          type="button"
+          class="filter-toggle"
+          id="filter-toggle"
+          aria-expanded="false"
+          aria-controls="filter-panel"
+        >
+          <span class="filter-toggle__title">Filter</span>
+          <span class="filter-toggle__summary" id="filter-summary"></span>
+          <span class="filter-toggle__mark" aria-hidden="true"></span>
+        </button>
+        <div class="filter-panel" id="filter-panel" hidden>
+          <label class="search">
+            <span class="search__label">Search</span>
+            <input
+              id="q"
+              type="search"
+              placeholder="Ticker or company — press /"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </label>
+          <div class="filters" role="group" aria-label="Call time">
+            <button class="chip is-on" data-time="all" type="button">All times</button>
+            <button class="chip" data-time="before-open" type="button">Before open</button>
+            <button class="chip" data-time="after-close" type="button">After close</button>
+          </div>
+          <div class="filters" role="group" aria-label="Market cap">
+            <button class="chip is-on" data-cap="0" type="button">Any size</button>
+            <button class="chip" data-cap="1000000000" type="button">$1B+</button>
+            <button class="chip" data-cap="10000000000" type="button">$10B+</button>
+            <button class="chip" data-cap="100000000000" type="button">$100B+</button>
+          </div>
         </div>
       </section>
 

@@ -29,6 +29,7 @@ const state = {
   companyCache: {},
   sortKey: "",
   sortDir: "desc",
+  filtersOpen: false,
 };
 
 const els = {
@@ -50,6 +51,9 @@ const els = {
   navKeysText: document.querySelector("#nav-keys-text"),
   navLinks: document.querySelector("#sidenav-nav"),
   pageTitle: document.querySelector("#page-title"),
+  filterToggle: document.querySelector("#filter-toggle"),
+  filterPanel: document.querySelector("#filter-panel"),
+  filterSummary: document.querySelector("#filter-summary"),
 };
 
 function loadKeys() {
@@ -807,6 +811,7 @@ function render() {
   });
   renderWeek(snap.calls, weekCalls);
   renderBoard(filtered);
+  syncFilterBar();
 }
 
 async function loadSnapshot() {
@@ -936,6 +941,35 @@ async function load() {
   }
 }
 
+const CAP_LABEL = {
+  0: "",
+  1000000000: "$1B+",
+  10000000000: "$10B+",
+  100000000000: "$100B+",
+};
+
+function filterSummaryText() {
+  const parts = [];
+  const q = state.query.trim();
+  if (q) parts.push(q);
+  if (state.time !== "all") parts.push(TIME_LABEL[state.time] || state.time);
+  if (CAP_LABEL[state.minCap]) parts.push(CAP_LABEL[state.minCap]);
+  return parts.join(" · ");
+}
+
+function syncFilterBar() {
+  if (!els.filterToggle) return;
+  if (els.filterSummary) els.filterSummary.textContent = filterSummaryText();
+  els.filterToggle.setAttribute("aria-expanded", state.filtersOpen ? "true" : "false");
+  if (els.filterPanel) els.filterPanel.hidden = !state.filtersOpen;
+}
+
+function setFiltersOpen(open, { focusSearch = false } = {}) {
+  state.filtersOpen = Boolean(open);
+  syncFilterBar();
+  if (focusSearch && state.filtersOpen) els.q?.focus();
+}
+
 document.querySelectorAll("[data-time]").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll("[data-time]").forEach((b) => b.classList.toggle("is-on", b === btn));
@@ -994,6 +1028,8 @@ els.q.addEventListener("input", () => {
   state.query = els.q.value;
   render();
 });
+
+els.filterToggle?.addEventListener("click", () => setFiltersOpen(!state.filtersOpen));
 
 els.keySource.addEventListener("change", updateKeyHint);
 
@@ -1147,7 +1183,13 @@ els.keyList.addEventListener("click", async (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "/" && state.tab === "calendar" && document.activeElement !== els.q) {
     event.preventDefault();
-    els.q.focus();
+    setFiltersOpen(true, { focusSearch: true });
+    return;
+  }
+  if (event.key === "Escape" && state.tab === "calendar" && state.filtersOpen) {
+    event.preventDefault();
+    setFiltersOpen(false);
+    els.filterToggle?.focus();
   }
 });
 
