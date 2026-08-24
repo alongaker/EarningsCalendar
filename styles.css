@@ -777,6 +777,7 @@ input[type="search"]:focus {
 
 .key-card h2 {
   margin: 0;
+  min-width: 0;
   font-family: var(--serif);
   font-size: 16px;
   font-weight: 500;
@@ -792,9 +793,15 @@ input[type="search"]:focus {
 
 .key-status {
   margin: 0;
+  min-width: 0;
+  max-width: 52%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--mute);
   font-family: var(--mono);
   font-size: 11px;
+  text-align: right;
 }
 
 .key-status.is-ok {
