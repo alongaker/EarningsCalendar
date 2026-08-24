@@ -155,7 +155,7 @@ function setView(tab, opts = {}) {
     link.setAttribute("aria-current", on ? "page" : "false");
   });
   const n = connectedCount();
-  if (els.navKeysText) els.navKeysText.textContent = n ? `API keys · ${n}` : "API keys";
+  if (els.navKeysText) els.navKeysText.textContent = "Settings";
   if (opts.updateHash !== false) {
     let hash = "#calendar";
     if (tab === "keys") hash = "#keys";
