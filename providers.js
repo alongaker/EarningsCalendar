@@ -36,6 +36,48 @@ export function canonicalSymbol(symbol) {
   return String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
 }
 
+export const MARKET_TZ = "America/New_York";
+
+export function marketDateIso(d = new Date(), timeZone = MARKET_TZ) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+export function startOfMarketDay(d = new Date(), timeZone = MARKET_TZ) {
+  return new Date(`${marketDateIso(d, timeZone)}T00:00:00.000Z`);
+}
+
+export function windowUpcoming(snap, today = marketDateIso()) {
+  const calls = (snap?.calls || []).filter((call) => call.date >= today);
+  return {
+    ...snap,
+    startDate: calls[0]?.date || today,
+    endDate: calls.at(-1)?.date || snap?.endDate || today,
+    count: calls.length,
+    calls,
+  };
+}
+
+export function parseMarketCap(value) {
+  if (!value || value === "N/A" || value === "—") return 0;
+  const n = Number(String(value).replace(/[$,]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function formatMarketCap(n) {
+  if (!n) return "—";
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(0)}M`;
+  return `${sign}$${Math.round(abs).toLocaleString("en-US")}`;
+}
+
 const NAME_SPECIAL = {
   inc: "Inc",
   corp: "Corp",
@@ -103,12 +145,8 @@ export function formatEps(value) {
 export function formatRevenue(value) {
   const n = Number(value);
   if (!Number.isFinite(n) || n === 0) return "";
-  const abs = Math.abs(n);
-  const sign = n < 0 ? "-" : "";
-  if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
-  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(0)}M`;
-  return `${sign}$${Math.round(abs).toLocaleString("en-US")}`;
+  const formatted = formatMarketCap(n);
+  return formatted === "—" ? "" : formatted;
 }
 
 export function mapTime(value) {

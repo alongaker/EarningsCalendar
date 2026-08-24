@@ -1,5 +1,9 @@
-import { formatCompanyName } from "../providers.js";
-import { startOfMarketDay } from "../dates.js";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { formatCompanyName, startOfMarketDay, parseMarketCap, formatMarketCap } from "../providers.js";
+
+export { parseMarketCap, formatMarketCap };
 
 const NASDAQ_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
@@ -10,21 +14,6 @@ export const TIME_MAP = {
   "time-not-supplied": "unspecified",
 };
 
-export function parseMarketCap(value) {
-  if (!value || value === "N/A") return 0;
-  const n = Number(String(value).replace(/[$,]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
-
-export function formatMarketCap(n) {
-  if (!n) return "—";
-  const abs = Math.abs(n);
-  if (abs >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
-  return `$${Math.round(n).toLocaleString("en-US")}`;
-}
-
 export function isoDate(d) {
   return d.toISOString().slice(0, 10);
 }
@@ -33,10 +22,6 @@ export function addDays(d, n) {
   const next = new Date(d);
   next.setUTCDate(next.getUTCDate() + n);
   return next;
-}
-
-export function startOfUtcDay(d = new Date()) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
 export function normalizeRow(row, date) {
@@ -117,4 +102,23 @@ export async function fetchUpcoming({
     errors,
     calls,
   };
+}
+
+const isCli =
+  Boolean(process.argv[1]) &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+
+if (isCli) {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const outFile = join(root, "data", "earnings.json");
+  const days = Number(process.env.EARNINGS_DAYS || 21);
+  const snapshot = await fetchUpcoming({ days });
+  await mkdir(dirname(outFile), { recursive: true });
+  await writeFile(outFile, `${JSON.stringify(snapshot)}\n`);
+  const errNote = snapshot.errors.length
+    ? ` (${snapshot.errors.length} day(s) failed)`
+    : "";
+  console.log(
+    `Wrote ${snapshot.count} calls ${snapshot.startDate} → ${snapshot.endDate}${errNote} to data/earnings.json`
+  );
 }

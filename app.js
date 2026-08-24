@@ -1,6 +1,5 @@
-import { PROVIDERS, fetchProvider, mergeCalls, formatCompanyName, formatEps, canonicalSymbol } from "./providers.js";
+import { PROVIDERS, fetchProvider, mergeCalls, formatCompanyName, formatEps, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls } from "./company.js";
-import { marketDateIso, windowUpcoming } from "./dates.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -179,11 +178,7 @@ function dash(value) {
 function formatCapLabel(value) {
   if (!value) return "—";
   const n = Number(String(value).replace(/[$,]/g, ""));
-  if (Number.isFinite(n) && n > 0) {
-    if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-    if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-    if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
-  }
+  if (Number.isFinite(n) && n > 0) return formatMarketCap(n);
   return String(value);
 }
 

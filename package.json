@@ -6,7 +6,7 @@
   "description": "Upcoming earnings call calendar — local server plus GitHub Pages site",
   "scripts": {
     "start": "node server.js",
-    "fetch": "node scripts/fetch-earnings.mjs",
+    "fetch": "node scripts/earnings-lib.mjs",
     "check": "node scripts/check-site.mjs"
   },
   "engines": {

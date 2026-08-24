@@ -1,4 +1,4 @@
-import { formatCompanyName, formatEps, canonicalSymbol } from "./providers.js";
+import { formatCompanyName, formatEps, canonicalSymbol, parseMarketCap, formatMarketCap } from "./providers.js";
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
@@ -135,21 +135,6 @@ export async function fetchNasdaqCompany(symbol, { fetchImpl = fetch } = {}) {
   return normalizeCompany({ info, summary, profile, surprises });
 }
 
-function parseCapNumber(value) {
-  if (!value || value === "N/A" || value === "—") return 0;
-  const n = Number(String(value).replace(/[$,]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
-
-function formatCapNumber(n) {
-  if (!n) return "—";
-  const abs = Math.abs(n);
-  if (abs >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (abs >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (abs >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
-  return `$${Math.round(n).toLocaleString("en-US")}`;
-}
-
 const quoteCache = new Map();
 const tickerMapCache = { at: 0, map: null };
 const SEC_UA =
@@ -208,12 +193,12 @@ export async function fetchNasdaqQuoteLite(symbol, { fetchImpl = fetch, withEps 
     summary = null;
   }
   const capRaw = val(summary?.summaryData?.MarketCap);
-  const marketCap = parseCapNumber(capRaw);
+  const marketCap = parseMarketCap(capRaw);
   let data = {
     symbol: ticker,
     name: formatCompanyName((info.companyName || "").replace(/\s+Common Stock$/i, "")),
     marketCap,
-    marketCapDisplay: formatCapNumber(marketCap),
+    marketCapDisplay: formatMarketCap(marketCap),
     lastEpsDisplay: "",
     epsChecked: false,
   };

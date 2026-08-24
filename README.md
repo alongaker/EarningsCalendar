@@ -45,10 +45,8 @@ On GitHub Pages there is no Node server, so the page reads the snapshot file and
 ```
 index.html                 # page
 styles.css / app.js        # UI
-providers.js               # extra API key providers
-company.js                 # company profile lookup
+providers.js / company.js  # data helpers + extra APIs
 server.js                  # local static + API server
-scripts/fetch-earnings.mjs # writes data/earnings.json
-scripts/earnings-lib.mjs   # Nasdaq fetch + cleanup
-data/earnings.json         # snapshot used on Pages
+scripts/earnings-lib.mjs   # Nasdaq fetch (`npm run fetch`)
+data/earnings.json         # compact snapshot used on Pages
 ```
