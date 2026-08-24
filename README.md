@@ -22,13 +22,13 @@ The local server serves the page and a live API:
 | `/` | The Earnings Calendar UI |
 | `/api/earnings` | Fresh Nasdaq fetch (cached 10 minutes) |
 | `/api/earnings?live=0` | The saved `data/earnings.json` snapshot |
-| `/api/provider/:name` | `POST` JSON `{ apiKey, from, to }` for `finnhub`, `fmp`, or `alphavantage` |
+| `/api/provider/:name` | `POST` JSON `{ apiKey, from, to }` for Finnhub, FMP, Alpha Vantage, API Ninjas, EODHD, or Twelve Data |
 | `/api/company/:symbol` | Nasdaq quote/profile plus SEC EDGAR filings |
 | `/api/quote/:symbol` | Light Nasdaq name + market cap lookup |
 
 Press `/` on the page to jump to search. Filter by call time or market cap, or click a day in the week strip. The board keeps operating companies and leaves off funds, ETFs, SPACs, nameless tickers, and symbols Nasdaq does not recognize. Click a company row to open its page (quote, an Overview with cap/EPS/last filing, upcoming call, recent earnings, and recent SEC filings from EDGAR). All-caps provider names are title-cased so the calendar reads consistently.
 
-The **API keys** tab stores Finnhub, Financial Modeling Prep, and Alpha Vantage keys in this browser. Saved keys are used to merge extra tickers, revenue estimates, and confirmed times into the calendar. Alpha Vantage’s calendar CSV often has no market cap and a blank EPS estimate; those rows are folded onto a nearby Nasdaq date (same ticker, within a few days) and backfilled from Nasdaq when the name is listed. OTC or foreign tickers with no Nasdaq quote can still look thin. Keys are not written to the repo.
+The **API keys** page (side menu) stores extra calendar sources in this browser. Pick a provider from the A–Z dropdown, paste a key, and it appears in the connected list. Saved keys merge extra tickers, revenue estimates, and confirmed times into the Nasdaq calendar. More keys help when they cover different names; overlapping calendars mostly confirm the same rows. Alpha Vantage’s calendar CSV often has no market cap and a blank EPS estimate; those rows are folded onto a nearby Nasdaq date (same ticker, within a few days) and backfilled from Nasdaq when the name is listed. OTC or foreign tickers with no Nasdaq quote can still look thin. Keys are not written to the repo.
 
 ## Publish on GitHub Pages
 

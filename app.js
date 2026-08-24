@@ -1,4 +1,4 @@
-import { PROVIDERS, fetchProvider, mergeCalls, formatCompanyName, formatEps, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
+import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, formatCompanyName, formatEps, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls } from "./company.js";
 
 const TIME_LABEL = {
@@ -13,6 +13,9 @@ const SOURCE_LABEL = {
   finnhub: "Finnhub",
   fmp: "FMP",
   alphavantage: "Alpha Vantage",
+  apininjas: "API Ninjas",
+  eodhd: "EODHD",
+  twelvedata: "Twelve Data",
 };
 
 const KEYS_STORAGE = "earningsCalendar.apiKeys.v1";
@@ -41,7 +44,12 @@ const els = {
   viewCalendar: document.querySelector("#view-calendar"),
   viewKeys: document.querySelector("#view-keys"),
   viewCompany: document.querySelector("#view-company"),
-  keyCards: document.querySelector("#key-cards"),
+  keyForm: document.querySelector("#key-form"),
+  keySource: document.querySelector("#key-source"),
+  keyValue: document.querySelector("#key-value"),
+  keyHint: document.querySelector("#key-hint"),
+  keyList: document.querySelector("#key-list"),
+  keyFormStatus: document.querySelector("#key-form-status"),
 };
 
 function loadKeys() {
@@ -137,14 +145,14 @@ function setView(tab, opts = {}) {
   els.viewCalendar.hidden = tab !== "calendar";
   els.viewKeys.hidden = tab !== "keys";
   els.viewCompany.hidden = tab !== "company";
-  document.querySelectorAll(".tab").forEach((btn) => {
-    const on = btn.dataset.tab === (tab === "company" ? "calendar" : tab);
-    btn.classList.toggle("is-on", on);
-    btn.setAttribute("aria-selected", on ? "true" : "false");
+  document.querySelectorAll(".sidenav__link").forEach((link) => {
+    const on = link.dataset.nav === (tab === "company" ? "calendar" : tab);
+    link.classList.toggle("is-on", on);
+    link.setAttribute("aria-current", on ? "page" : "false");
   });
-  const keysTab = document.querySelector("#tab-keys");
+  const keysNav = document.querySelector("#nav-keys");
   const n = connectedCount();
-  keysTab.textContent = n ? `API keys · ${n}` : "API keys";
+  if (keysNav) keysNav.textContent = n ? `API keys · ${n}` : "API keys";
   if (opts.updateHash !== false) {
     let hash = "#calendar";
     if (tab === "keys") hash = "#keys";
@@ -160,7 +168,7 @@ function setView(tab, opts = {}) {
       ? `${n} extra provider${n === 1 ? "" : "s"} connected`
       : "No extra providers yet";
     els.source.textContent = "Keys stay in this browser";
-    renderKeyCards();
+    renderKeysPage();
   } else if (tab === "company" && state.companySymbol) {
     showCompany(state.companySymbol, state.companyDate);
   } else if (state.snapshot) {
@@ -562,40 +570,104 @@ function statusLine(id) {
   return s.message || "Could not connect";
 }
 
-function renderKeyCards() {
-  els.keyCards.innerHTML = PROVIDERS.map((provider) => {
-    const saved = Boolean(state.keys[provider.id]);
-    const s = state.statuses[provider.id];
-    const tone = s?.state === "err" ? "is-err" : s?.state === "ok" ? "is-ok" : "";
-    return `<article class="key-card" data-provider="${provider.id}">
-      <div class="key-card__head">
-        <h2>${escapeHtml(provider.name)}</h2>
-        <p class="key-status ${tone}">${escapeHtml(statusLine(provider.id))}</p>
-      </div>
-      <p>${escapeHtml(provider.blurb)}</p>
-      <p class="key-links">
-        <a href="${provider.signup}" target="_blank" rel="noopener">Get a free key</a>
-        ·
-        <a href="${provider.docs}" target="_blank" rel="noopener">API docs</a>
-      </p>
-      <label class="key-field">
-        <span>API key</span>
-        <input
-          type="password"
-          name="${provider.id}"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="${escapeHtml(provider.placeholder)}"
-          value="${escapeHtml(state.keys[provider.id])}"
-        />
-      </label>
-      <div class="key-actions">
-        <button type="button" data-save="${provider.id}">${saved ? "Update key" : "Save key"}</button>
-        <button type="button" class="ghost" data-test="${provider.id}" ${saved ? "" : "disabled"}>Test</button>
-        <button type="button" class="ghost" data-clear="${provider.id}" ${saved ? "" : "disabled"}>Remove</button>
-      </div>
-    </article>`;
-  }).join("");
+function connectedProviders() {
+  return providersByName().filter((provider) => state.keys[provider.id]);
+}
+
+function unusedProviders() {
+  return providersByName().filter((provider) => !state.keys[provider.id]);
+}
+
+function maskKey(value) {
+  const key = String(value || "");
+  if (key.length <= 4) return "••••";
+  return `•••• ${key.slice(-4)}`;
+}
+
+function showFormStatus(message, isError = false) {
+  if (!els.keyFormStatus) return;
+  if (!message) {
+    els.keyFormStatus.hidden = true;
+    els.keyFormStatus.textContent = "";
+    els.keyFormStatus.classList.remove("is-err");
+    return;
+  }
+  els.keyFormStatus.hidden = false;
+  els.keyFormStatus.classList.toggle("is-err", isError);
+  els.keyFormStatus.textContent = message;
+}
+
+function updateKeyHint() {
+  const provider = providerById(els.keySource?.value);
+  if (!els.keyHint) return;
+  if (!provider) {
+    els.keyHint.textContent = "Every available source is already connected.";
+    return;
+  }
+  els.keyHint.innerHTML = `${escapeHtml(provider.blurb)}
+    <a href="${provider.signup}" target="_blank" rel="noopener">Get a key</a>
+    ·
+    <a href="${provider.docs}" target="_blank" rel="noopener">API docs</a>`;
+}
+
+function renderSourceSelect() {
+  const unused = unusedProviders();
+  const current = els.keySource.value;
+  els.keySource.innerHTML = unused
+    .map((provider) => `<option value="${provider.id}">${escapeHtml(provider.name)}</option>`)
+    .join("");
+  if (unused.some((p) => p.id === current)) els.keySource.value = current;
+  const empty = unused.length === 0;
+  els.keySource.disabled = empty;
+  els.keyValue.disabled = empty;
+  const submit = els.keyForm.querySelector("button[type='submit']");
+  if (submit) submit.disabled = empty;
+  if (empty) els.keyValue.value = "";
+  updateKeyHint();
+}
+
+function renderKeysPage() {
+  renderSourceSelect();
+  const saved = connectedProviders();
+  if (!saved.length) {
+    els.keyList.innerHTML = `<p class="key-list-empty">No extra sources yet. Choose one above to add it.</p>`;
+    return;
+  }
+  els.keyList.innerHTML = saved
+    .map((provider) => {
+      const s = state.statuses[provider.id];
+      const tone = s?.state === "err" ? "is-err" : s?.state === "ok" ? "is-ok" : "";
+      return `<article class="key-card" data-provider="${provider.id}">
+        <div class="key-card__head">
+          <h2>${escapeHtml(provider.name)}</h2>
+          <p class="key-status ${tone}">${escapeHtml(statusLine(provider.id))}</p>
+        </div>
+        <p class="key-links">
+          ${escapeHtml(maskKey(state.keys[provider.id]))}
+          ·
+          <a href="${provider.signup}" target="_blank" rel="noopener">Get a key</a>
+          ·
+          <a href="${provider.docs}" target="_blank" rel="noopener">API docs</a>
+        </p>
+        <label class="key-field">
+          <span>Update key</span>
+          <input
+            type="password"
+            name="${provider.id}"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="${escapeHtml(provider.placeholder)}"
+            value="${escapeHtml(state.keys[provider.id])}"
+          />
+        </label>
+        <div class="key-actions">
+          <button type="button" data-save="${provider.id}">Update</button>
+          <button type="button" class="ghost" data-test="${provider.id}">Test</button>
+          <button type="button" class="ghost" data-clear="${provider.id}">Remove</button>
+        </div>
+      </article>`;
+    })
+    .join("");
 }
 
 function pruneDayFilter(today = marketDateIso()) {
@@ -698,7 +770,7 @@ async function enrichFromKeys(base) {
       }
     })
   );
-  if (state.tab === "keys") renderKeyCards();
+  if (state.tab === "keys") renderKeysPage();
   if (!extras.length) {
     return {
       ...base,
@@ -774,9 +846,6 @@ document.querySelectorAll("[data-cap]").forEach((btn) => {
   });
 });
 
-document.querySelectorAll(".tab").forEach((btn) => {
-  btn.addEventListener("click", () => setView(btn.dataset.tab));
-});
 
 els.board.addEventListener("click", (event) => {
   const row = event.target.closest("[data-symbol]");
@@ -808,7 +877,31 @@ els.q.addEventListener("input", () => {
   render();
 });
 
-els.keyCards.addEventListener("click", async (event) => {
+els.keySource.addEventListener("change", updateKeyHint);
+
+els.keyForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = els.keySource.value;
+  const value = els.keyValue.value.trim();
+  const provider = providerById(id);
+  if (!provider) {
+    showFormStatus("Pick a source from the list.", true);
+    return;
+  }
+  if (!value) {
+    showFormStatus("Paste an API key first.", true);
+    return;
+  }
+  state.keys[id] = value;
+  saveKeys();
+  els.keyValue.value = "";
+  showFormStatus(`${provider.name} saved in this browser.`);
+  renderKeysPage();
+  if (state.base) await applyCalendar(state.base);
+  else renderKeysPage();
+});
+
+els.keyList.addEventListener("click", async (event) => {
   const saveId = event.target.dataset.save;
   const testId = event.target.dataset.test;
   const clearId = event.target.dataset.clear;
@@ -819,31 +912,30 @@ els.keyCards.addEventListener("click", async (event) => {
     state.keys[id] = "";
     delete state.statuses[id];
     saveKeys();
-    renderKeyCards();
-    if (state.base) {
-      await applyCalendar(state.base);
-    }
+    showFormStatus("");
+    renderKeysPage();
+    if (state.base) await applyCalendar(state.base);
     return;
   }
 
-  const input = els.keyCards.querySelector(`input[name="${id}"]`);
+  const input = els.keyList.querySelector(`input[name="${id}"]`);
   const value = input?.value.trim() || "";
   if (saveId || testId) {
     if (!value && !state.keys[id]) {
       state.statuses[id] = { state: "err", message: "Paste a key first" };
-      renderKeyCards();
+      renderKeysPage();
       return;
     }
     if (value) state.keys[id] = value;
     if (saveId) saveKeys();
   }
   if (!state.keys[id] || !state.base) {
-    renderKeyCards();
+    renderKeysPage();
     return;
   }
-  renderKeyCards();
+  renderKeysPage();
   await applyCalendar(state.base);
-  renderKeyCards();
+  renderKeysPage();
 });
 
 document.addEventListener("keydown", (event) => {

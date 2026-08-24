@@ -18,6 +18,15 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <div class="shell">
+    <aside class="sidenav" aria-label="Site">
+      <p class="sidenav__brand">Earnings Calendar</p>
+      <nav class="sidenav__nav">
+        <a class="sidenav__link is-on" id="nav-calendar" href="#calendar" data-nav="calendar">Calendar</a>
+        <a class="sidenav__link" id="nav-keys" href="#keys" data-nav="keys">API keys</a>
+      </nav>
+    </aside>
+    <div class="shell__main">
     <header class="masthead">
       <div class="masthead__brand">
         <h1>Earnings Calendar</h1>
@@ -27,15 +36,6 @@
         <p id="source-line">Nasdaq earnings calendar</p>
       </div>
     </header>
-
-    <nav class="tabs" role="tablist" aria-label="Views">
-      <button class="tab is-on" id="tab-calendar" data-tab="calendar" type="button" role="tab" aria-selected="true">
-        Calendar
-      </button>
-      <button class="tab" id="tab-keys" data-tab="keys" type="button" role="tab" aria-selected="false">
-        API keys
-      </button>
-    </nav>
 
     <div id="view-calendar">
       <section class="toolbar" aria-label="Filters">
@@ -74,12 +74,36 @@
     </section>
 
     <section id="view-keys" class="keys" hidden>
+      <h2 class="keys-title">API keys</h2>
       <p class="keys-lede">
-        Add keys from extra data providers to pull more earnings-call coverage
-        (extra tickers, revenue estimates, confirmed times). Keys are saved in
-        this browser only — they are not committed to GitHub.
+        Pick a source, paste its key, and it will show up in the list below.
+        Extra sources can fill in missing tickers, revenue, and call times on
+        top of Nasdaq. Keys stay in this browser only — they are not committed
+        to GitHub. More keys help when they cover different names; overlapping
+        calendars mostly confirm the same rows.
       </p>
-      <div id="key-cards" class="key-grid"></div>
+      <form id="key-form" class="key-add">
+        <label class="key-add__field">
+          <span>Source</span>
+          <select id="key-source" required></select>
+        </label>
+        <label class="key-add__field key-add__field--key">
+          <span>API key</span>
+          <input
+            id="key-value"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Paste key"
+            required
+          />
+        </label>
+        <button type="submit">Add key</button>
+      </form>
+      <p id="key-hint" class="key-hint"></p>
+      <p id="key-form-status" class="key-form-status" hidden></p>
+      <h3 class="keys-list-title">Connected sources</h3>
+      <div id="key-list" class="key-list"></div>
     </section>
 
     <footer class="colophon">
@@ -88,6 +112,8 @@
         Figures come from Nasdaq and any keys you add, and are not investment advice.
       </p>
     </footer>
+    </div>
+    </div>
 
     <script src="./app.js" type="module"></script>
   </body>

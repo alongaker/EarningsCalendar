@@ -49,8 +49,61 @@ body::before {
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent 28%);
 }
 
+.shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidenav {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  min-height: 100vh;
+  padding: 28px 18px 32px;
+  border-right: 1px solid var(--rule);
+  background: var(--ink-2);
+}
+
+.sidenav__brand {
+  margin: 0 0 22px;
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.sidenav__nav {
+  display: grid;
+  gap: 4px;
+}
+
+.sidenav__link {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 4px;
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.sidenav__link:hover,
+.sidenav__link.is-on {
+  color: var(--cream);
+  background: var(--ink-3);
+}
+
+.sidenav__link.is-on {
+  box-shadow: inset 2px 0 0 var(--gold);
+}
+
+.shell__main {
+  min-width: 0;
+}
+
 .masthead,
-.tabs,
 .toolbar,
 .week,
 .board,
@@ -464,9 +517,88 @@ input[type="search"]:focus {
   margin: 28px auto 64px;
 }
 
+.keys-title {
+  margin: 0 0 8px;
+  font-family: var(--serif);
+  font-size: 28px;
+  font-weight: 500;
+}
+
 .keys-lede {
   max-width: 46rem;
   color: var(--cream-dim);
+}
+
+.keys-list-title {
+  margin: 28px 0 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.key-add {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 18px;
+}
+
+.key-add__field {
+  display: grid;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--mute);
+}
+
+.key-add select,
+.key-add input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--rule-strong);
+  background: var(--ink);
+  color: var(--cream);
+  font: 14px/1.3 var(--mono);
+  outline: none;
+}
+
+.key-add select:focus,
+.key-add input:focus {
+  border-color: var(--gold);
+}
+
+.key-add button {
+  padding: 10px 14px;
+  border: 1px solid var(--gold);
+  background: transparent;
+  color: var(--cream);
+  font-family: var(--mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.key-hint,
+.key-form-status,
+.key-list-empty {
+  color: var(--cream-dim);
+  font-size: 14px;
+}
+
+.key-hint a,
+.key-row__links a {
+  color: var(--gold-soft);
+}
+
+.key-form-status.is-err {
+  color: #d46a6a;
+}
+
+.key-list {
+  display: grid;
+  gap: 12px;
 }
 
 .key-grid {
@@ -579,6 +711,40 @@ code {
 }
 
 @media (max-width: 760px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidenav {
+    position: static;
+    min-height: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 18px;
+    padding: 16px 16px 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .sidenav__brand {
+    margin: 0;
+    flex: 1 1 auto;
+  }
+
+  .sidenav__nav {
+    display: flex;
+    gap: 4px;
+  }
+
+  .sidenav__link.is-on {
+    box-shadow: inset 0 -2px 0 var(--gold);
+  }
+
+  .key-add {
+    grid-template-columns: 1fr;
+  }
+
   .masthead {
     display: grid;
   }

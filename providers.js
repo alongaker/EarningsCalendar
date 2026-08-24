@@ -26,10 +26,42 @@ export const PROVIDERS = [
     docs: "https://www.alphavantage.co/documentation/#earnings-calendar",
     placeholder: "Alpha Vantage API key",
   },
+  {
+    id: "apininjas",
+    name: "API Ninjas",
+    blurb: "Adds extra tickers and EPS estimates from a compact earnings calendar.",
+    signup: "https://api-ninjas.com/register",
+    docs: "https://api-ninjas.com/api/earningscalendar",
+    placeholder: "API Ninjas key",
+  },
+  {
+    id: "eodhd",
+    name: "EODHD",
+    blurb: "Adds report times plus EPS estimates for listed names.",
+    signup: "https://eodhd.com/register",
+    docs: "https://eodhd.com/financial-apis/calendar-earnings-trends-ipos",
+    placeholder: "EODHD API token",
+  },
+  {
+    id: "twelvedata",
+    name: "Twelve Data",
+    blurb: "Adds more names and estimated EPS, with before/after-market timing when the feed has it.",
+    signup: "https://twelvedata.com/pricing",
+    docs: "https://twelvedata.com/docs#earnings-calendar",
+    placeholder: "Twelve Data API key",
+  },
 ];
 
 export function providerIds() {
   return PROVIDERS.map((p) => p.id);
+}
+
+export function providerById(id) {
+  return PROVIDERS.find((p) => p.id === id) || null;
+}
+
+export function providersByName() {
+  return [...PROVIDERS].sort((a, b) => a.name.localeCompare(b.name, "en"));
 }
 
 export function canonicalSymbol(symbol) {
@@ -285,6 +317,59 @@ export function normalizeAlphaVantage(row) {
   });
 }
 
+function listedSymbol(value) {
+  return String(value || "").replace(/\.[A-Z]{1,4}$/, "");
+}
+
+export function normalizeApiNinjas(row) {
+  return baseCall({
+    date: row.date || row.report_date,
+    symbol: row.ticker || row.symbol,
+    name: row.name || row.company || "",
+    epsForecast: formatEps(row.estimated_eps ?? row.eps_estimate),
+    epsActual: formatEps(row.actual_eps ?? row.eps),
+    sources: ["apininjas"],
+  });
+}
+
+export function normalizeEodhd(row) {
+  return baseCall({
+    date: row.report_date || row.date,
+    symbol: listedSymbol(row.code || row.symbol),
+    name: row.company_name || row.name || "",
+    time: mapTime(row.before_after_market || row.time),
+    epsForecast: formatEps(row.estimate),
+    epsActual: formatEps(row.actual),
+    sources: ["eodhd"],
+  });
+}
+
+export function normalizeTwelveData(row, fallbackDate = "") {
+  return baseCall({
+    date: row.date || fallbackDate,
+    symbol: row.symbol || row.ticker,
+    name: row.name || "",
+    time: mapTime(row.time),
+    epsForecast: formatEps(row.eps_estimate ?? row.eps_estimated),
+    epsActual: formatEps(row.eps_actual ?? row.eps),
+    sources: ["twelvedata"],
+  });
+}
+
+function earningsRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.earnings)) return payload.earnings;
+  if (payload && typeof payload === "object") {
+    const rows = [];
+    for (const [date, list] of Object.entries(payload)) {
+      if (!Array.isArray(list)) continue;
+      for (const row of list) rows.push({ date: row.date || date, ...row });
+    }
+    return rows;
+  }
+  return [];
+}
+
 function nonempty(value) {
   return value !== null && value !== undefined && String(value).trim() !== "" && value !== "—";
 }
@@ -384,9 +469,13 @@ function providerError(payload, status) {
   );
 }
 
-async function fetchJson(url, { fetchImpl = fetch } = {}) {
+async function fetchJson(url, { fetchImpl = fetch, headers = {} } = {}) {
   const res = await fetchImpl(url, {
-    headers: { "User-Agent": UA, Accept: "application/json,text/csv,text/plain,*/*" },
+    headers: {
+      "User-Agent": UA,
+      Accept: "application/json,text/csv,text/plain,*/*",
+      ...headers,
+    },
   });
   const text = await res.text();
   let payload = text;
@@ -456,6 +545,43 @@ export async function fetchProvider(id, apiKey, { from, to, fetchImpl = fetch } 
     const rows = parseCsv(text);
     return rows
       .map(normalizeAlphaVantage)
+      .filter((c) => c.symbol && c.date && c.date >= from && c.date <= to && isOperatingCompany(c.name));
+  }
+
+  if (id === "apininjas") {
+    const url = new URL("https://api.api-ninjas.com/v1/earningscalendar");
+    url.searchParams.set("start", from);
+    url.searchParams.set("end", to);
+    const payload = await fetchJson(url, { fetchImpl, headers: { "X-Api-Key": key } });
+    const rows = earningsRows(payload);
+    return rows
+      .map(normalizeApiNinjas)
+      .filter((c) => c.symbol && c.date && c.date >= from && c.date <= to && isOperatingCompany(c.name));
+  }
+
+  if (id === "eodhd") {
+    const url = new URL("https://eodhd.com/api/calendar/earnings");
+    url.searchParams.set("from", from);
+    url.searchParams.set("to", to);
+    url.searchParams.set("api_token", key);
+    url.searchParams.set("fmt", "json");
+    const payload = await fetchJson(url, { fetchImpl });
+    const rows = earningsRows(payload);
+    return rows
+      .map(normalizeEodhd)
+      .filter((c) => c.symbol && c.date && c.date >= from && c.date <= to && isOperatingCompany(c.name));
+  }
+
+  if (id === "twelvedata") {
+    const url = new URL("https://api.twelvedata.com/earnings_calendar");
+    url.searchParams.set("apikey", key);
+    const payload = await fetchJson(url, { fetchImpl });
+    if (payload?.status === "error" || payload?.code) {
+      throw new Error(providerError(payload, 200));
+    }
+    const rows = earningsRows(payload);
+    return rows
+      .map((row) => normalizeTwelveData(row, row.date))
       .filter((c) => c.symbol && c.date && c.date >= from && c.date <= to && isOperatingCompany(c.name));
   }
 

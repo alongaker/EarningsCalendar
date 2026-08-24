@@ -211,7 +211,7 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`Earnings Calendar running at http://localhost:${PORT}`);
   console.log("Live API:  GET /api/earnings");
-  console.log("Provider: POST /api/provider/{finnhub|fmp|alphavantage}");
+  console.log("Provider: POST /api/provider/{finnhub|fmp|alphavantage|apininjas|eodhd|twelvedata}");
   console.log("Company:  GET  /api/company/NVDA");
   console.log("Quote:    GET  /api/quote/NVDA");
 });

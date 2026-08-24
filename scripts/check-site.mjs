@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, formatEps, formatCompanyName, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatCompanyName, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -180,6 +180,31 @@ assert(isPlaceholderName("Symbol not exists", "ZZZ"), "nasdaq missing-symbol mes
 assert(isPlaceholderName("ZZZ", "ZZZ"), "ticker used as name is a placeholder");
 assert(!keepCalendarRow({ date: "2026-08-26", symbol: "ZZZ", name: "" }), "drop nameless rows");
 assert(keepCalendarRow({ date: "2026-08-26", symbol: "NVDA", name: "NVIDIA Corporation" }), "keep named rows");
+
+const ninja = normalizeApiNinjas({
+  date: "2026-08-26",
+  ticker: "MSFT",
+  name: "Microsoft Corp",
+  estimated_eps: 2.5,
+});
+assert(ninja.symbol === "MSFT" && ninja.sources.includes("apininjas"), "normalize API Ninjas");
+const eod = normalizeEodhd({
+  report_date: "2026-08-26",
+  code: "AAPL.US",
+  before_after_market: "AfterMarket",
+  estimate: 1.1,
+});
+assert(eod.symbol === "AAPL" && eod.time === "after-close", "normalize EODHD listed symbol");
+const twelve = normalizeTwelveData({
+  date: "2026-08-26",
+  symbol: "IBM",
+  name: "IBM",
+  time: "bmo",
+  eps_estimate: 1.2,
+});
+assert(twelve.time === "before-open" && twelve.sources.includes("twelvedata"), "normalize Twelve Data");
+const names = providersByName().map((p) => p.name);
+assert(names.slice().sort((a, b) => a.localeCompare(b, "en")).join() === names.join(), "providers listed A–Z by name");
 
 const csv = parseCsv("symbol,name,reportDate,estimate\nAAPL,Apple Inc,2026-08-21,1.5");
 assert(normalizeAlphaVantage(csv[0]).symbol === "AAPL", "alpha csv normalize");
