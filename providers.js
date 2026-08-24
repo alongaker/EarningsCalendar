@@ -220,6 +220,13 @@ export function formatCompanyName(name) {
   });
 }
 
+export function clipCompanyName(name, limit = 25) {
+  const s = formatCompanyName(name);
+  if (!s) return "";
+  if (s.length <= limit) return s;
+  return s.slice(0, limit).trimEnd();
+}
+
 export function formatEps(value) {
   if (value === null || value === undefined || value === "") return "";
   if (typeof value === "string") {

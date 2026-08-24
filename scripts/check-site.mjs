@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, clipCompanyName, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -176,6 +176,9 @@ assert(formatCompanyName("BANK OF AMERICA CORP") === "Bank of America Corp", "sm
 assert(formatCompanyName("NVIDIA Corporation") === "NVIDIA Corporation", "keep mixed-case names");
 assert(formatCompanyName("XYZ INC") === "Xyz Inc", "caps inc suffix");
 assert(formatCompanyName("Boxabl, Inc. Common Stock") === "Boxabl, Inc.", "drop common stock suffix");
+assert(clipCompanyName("Apple Inc") === "Apple Inc", "short names stay whole");
+assert(clipCompanyName("Bank of Nova Scotia (The)").length === 25, "long names stop at 25 characters");
+assert(clipCompanyName("International Business Machines Corporation") === "International Business Ma", "clip to 25 characters");
 assert(isOperatingCompany("NVIDIA Corporation"), "keep operating companies");
 assert(!isOperatingCompany("SPDR S&P 500 ETF Trust"), "drop ETFs");
 assert(!isOperatingCompany("PIMCO Corporate Opportunity Fund"), "drop funds");
