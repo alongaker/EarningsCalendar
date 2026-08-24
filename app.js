@@ -54,6 +54,7 @@ const els = {
   navToggle: document.querySelector("#nav-toggle"),
   navKeysText: document.querySelector("#nav-keys-text"),
   navLinks: document.querySelector("#sidenav-nav"),
+  pageTitle: document.querySelector("#page-title"),
 };
 
 function loadKeys() {
@@ -156,6 +157,10 @@ function setView(tab, opts = {}) {
   });
   const n = connectedCount();
   if (els.navKeysText) els.navKeysText.textContent = "Settings";
+  if (els.pageTitle) {
+    els.pageTitle.textContent = tab === "keys" ? "Settings" : "Earnings Calendar";
+  }
+  if (tab === "keys") document.title = "Settings — Earnings Calendar";
   if (opts.updateHash !== false) {
     let hash = "#calendar";
     if (tab === "keys") hash = "#keys";
