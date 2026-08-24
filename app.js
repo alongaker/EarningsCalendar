@@ -736,7 +736,7 @@ function renderKeysPage() {
         <div class="key-card__body">
           <div class="key-card__head">
             <h2>${escapeHtml(provider.name)}</h2>
-            <p class="key-status ${tone}">${escapeHtml(statusLine(provider.id))}</p>
+            <p class="key-status ${tone}" title="${escapeHtml(statusLine(provider.id))}">${escapeHtml(statusLine(provider.id))}</p>
           </div>
           <div class="key-card__row">
             <p class="key-links">
