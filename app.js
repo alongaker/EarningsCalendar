@@ -1,4 +1,4 @@
-import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, fetchOratsSnapshot, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap, formatMdY, daysUntilIso, formatPctPoints, formatUsdMoney, ORATS_CACHE_HOURS, ORATS_SNAPSHOT_CALLS } from "./providers.js";
+import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, fetchOratsSnapshot, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap, formatMdY, daysUntilIso, nextBusinessDaysIso, formatPctPoints, formatUsdMoney, ORATS_CACHE_HOURS, ORATS_SNAPSHOT_CALLS } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, enrichCallPrices, hydrateLastRevenue, hydratePrices } from "./company.js";
 
 const TIME_LABEL = {
@@ -1190,7 +1190,7 @@ function renderCompanies(calls) {
     .join("");
   els.companiesBoard.innerHTML = `<section class="day-block">
     <div class="day-head">
-      <h3>Upcoming</h3>
+      <h3>Next 5 business days</h3>
       <span>${rows.length} compan${rows.length === 1 ? "y" : "ies"}</span>
     </div>
     ${
@@ -1221,7 +1221,9 @@ function render() {
   if (!state.snapshot) return;
   if (state.tab !== "calendar" && state.tab !== "companies") return;
   const snap = currentWindow(state.snapshot);
-  const listRows = snap.calls.filter((call) => matches(call, { ignoreDay: true }));
+  const filterRows = snap.calls.filter((call) => matches(call, { ignoreDay: true }));
+  const companyDays = new Set(nextBusinessDaysIso(marketDateIso(), 5));
+  const listRows = filterRows.filter((call) => companyDays.has(call.date));
   const generated = new Date(snap.generatedAt);
   const when = Number.isFinite(generated.getTime())
     ? new Intl.DateTimeFormat("en-US", {
@@ -1234,7 +1236,9 @@ function render() {
     : "just now";
   if (state.tab === "companies") {
     document.title = "Companies — Earnings Calendar";
-    els.asOf.textContent = `${listRows.length} companies · ${snap.startDate} to ${snap.endDate} · updated ${when}`;
+    const from = [...companyDays][0] || snap.startDate;
+    const to = [...companyDays].at(-1) || snap.endDate;
+    els.asOf.textContent = `${listRows.length} companies · next 5 business days · ${from} to ${to} · updated ${when}`;
     els.source.textContent = snap.warning
       ? snap.warning
       : snap.mode === "live"
@@ -1252,7 +1256,7 @@ function render() {
     : snap.mode === "live"
       ? "Live calendar"
       : "Saved snapshot";
-  const weekCalls = listRows;
+  const weekCalls = filterRows;
   renderWeek(snap.calls, weekCalls);
   renderBoard(filtered);
   syncFilterBar();

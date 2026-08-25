@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, fetchOratsSnapshot, formatMdY, daysUntilIso, formatPctPoints } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, fetchOratsSnapshot, formatMdY, daysUntilIso, nextBusinessDaysIso, formatPctPoints } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, enrichCallPrices, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -47,6 +47,18 @@ assert(marketDateIso(new Date("2026-08-25T04:30:00Z")) === "2026-08-25", "after 
 assert(formatMdY("2026-08-25") === "08/25/26", "announce date MM/DD/YY");
 assert(daysUntilIso("2026-08-25", "2026-08-25") === 0, "same-day announce is 0 days until");
 assert(daysUntilIso("2026-08-27", "2026-08-25") === 2, "days until later announce date");
+assert(
+  nextBusinessDaysIso("2026-08-25", 5).join(",") === "2026-08-25,2026-08-26,2026-08-27,2026-08-28,2026-08-31",
+  "five business days from a Tuesday include the following Monday"
+);
+assert(
+  nextBusinessDaysIso("2026-08-28", 5).join(",") === "2026-08-28,2026-08-31,2026-09-01,2026-09-02,2026-09-03",
+  "five business days from a Friday skip the weekend"
+);
+assert(
+  nextBusinessDaysIso("2026-08-29", 5).join(",") === "2026-08-31,2026-09-01,2026-09-02,2026-09-03,2026-09-04",
+  "weekend start rolls to Monday"
+);
 const windowed = windowUpcoming(
   {
     startDate: "2026-08-21",
@@ -492,6 +504,8 @@ assert(appJs.includes("formatMdY"), "companies table formats announce dates");
 assert(appJs.includes("fetchOratsSnapshot"), "company page can load ORATS snapshot");
 assert(appJs.includes("Implied move"), "company options block shows implied move");
 assert(appJs.includes("Past earnings moves"), "company options block shows past moves");
+assert(appJs.includes("nextBusinessDaysIso"), "companies list uses the next five business days");
+assert(appJs.includes("Next 5 business days"), "companies heading names the five-day window");
 assert(!/renderCompanies[\s\S]*fetchOratsSnapshot/.test(appJs), "companies list does not fetch ORATS");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");

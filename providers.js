@@ -152,6 +152,31 @@ export function daysUntilIso(iso, today = marketDateIso()) {
   return Math.round(ms / 86400000);
 }
 
+export function isWeekdayIso(iso) {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const day = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).getUTCDay();
+  return day !== 0 && day !== 6;
+}
+
+export function addDaysIso(iso, days) {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + Number(days)));
+  return dt.toISOString().slice(0, 10);
+}
+
+export function nextBusinessDaysIso(today = marketDateIso(), count = 5) {
+  const n = Math.max(0, Number(count) || 0);
+  const out = [];
+  let cursor = today;
+  for (let i = 0; i < 21 && out.length < n; i += 1) {
+    if (isWeekdayIso(cursor)) out.push(cursor);
+    cursor = addDaysIso(cursor, 1);
+  }
+  return out;
+}
+
 const NON_OPERATING_NAME =
   /\b(?:etfs?|etns?|exchange[\s-]*traded|closed[\s-]*end|mutual\s+funds?|blank\s+check|spacs?)\b|\bacquisition\s+(?:corp(?:oration)?|co\.?|company)\b|\btrusts?\b|\bfunds?\b|\bcredit\s+(?:opportunit\w*|companies|company|funds?|trusts?|income)\b|\bbusiness\s+development\s+compan(?:y|ies)\b/i;
 
