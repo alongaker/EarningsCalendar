@@ -197,6 +197,7 @@ export async function fetchNasdaqQuoteLite(symbol, { fetchImpl = fetch, withEps 
   let data = {
     symbol: ticker,
     name: formatCompanyName((info.companyName || "").replace(/\s+Common Stock$/i, "")),
+    price: roundToHundredth(info?.primaryData?.lastSalePrice || ""),
     marketCap,
     marketCapDisplay: formatMarketCap(marketCap),
     lastEpsDisplay: "",
@@ -244,6 +245,7 @@ function applyQuotes(calls, quotes) {
     return {
       ...call,
       name: name || call.name,
+      price: nonemptyField(call.price) ? call.price : quote.price || "",
       marketCap,
       marketCapDisplay: call.marketCap ? call.marketCapDisplay : quote.marketCapDisplay || "—",
       lastEpsDisplay: call.lastEpsDisplay || quote.lastEpsDisplay || "",
@@ -449,6 +451,41 @@ async function lookupQuote(symbol, { fetchImpl, withEps } = {}) {
     // Fall through to a direct Nasdaq lookup.
   }
   return fetchNasdaqQuoteLite(symbol, { fetchImpl, withEps }).catch(() => null);
+}
+
+function applyPrices(calls, prices) {
+  return calls.map((call) => {
+    const quote = prices.get(call.symbol);
+    if (!quote || !nonemptyField(quote.price) || nonemptyField(call.price)) return call;
+    return { ...call, price: quote.price };
+  });
+}
+
+async function lookupPrice(symbol, { fetchImpl } = {}) {
+  const quote = await lookupQuote(symbol, { fetchImpl, withEps: false });
+  if (quote?.price) return quote;
+  return null;
+}
+
+export async function enrichCallPrices(calls, { fetchImpl = fetch, onProgress } = {}) {
+  const symbols = [];
+  const seen = new Set();
+  for (const call of calls) {
+    if (seen.has(call.symbol) || nonemptyField(call.price)) continue;
+    seen.add(call.symbol);
+    symbols.push(call.symbol);
+  }
+  if (!symbols.length) return calls;
+
+  const found = new Map();
+  let done = 0;
+  await mapPool(symbols, 6, async (symbol) => {
+    const data = await lookupPrice(symbol, { fetchImpl });
+    if (data?.price) found.set(symbol, data);
+    done += 1;
+    if (onProgress && done % 12 === 0) onProgress(applyPrices(calls, found));
+  });
+  return applyPrices(calls, found);
 }
 
 export async function enrichSparseCalls(

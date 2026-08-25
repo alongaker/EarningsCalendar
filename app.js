@@ -1,5 +1,5 @@
 import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap, formatMdY, daysUntilIso } from "./providers.js";
-import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, hydrateLastRevenue } from "./company.js";
+import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, enrichCallPrices, hydrateLastRevenue } from "./company.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -266,6 +266,7 @@ function setView(tab, opts = {}) {
     showCompany(state.companySymbol, state.companyDate);
   } else if (state.snapshot) {
     render();
+    if (tab === "companies") fillMissingPrices();
   }
 }
 
@@ -320,6 +321,10 @@ function hydrateCallsFromProfile(symbol, profile) {
         next.lastEpsDisplay = lastEps;
         changed = true;
       }
+    }
+    if (profile.price && next.price !== profile.price) {
+      next.price = profile.price;
+      changed = true;
     }
     return next;
   });
@@ -877,6 +882,8 @@ function renderCompanies(calls) {
         <td>${escapeHtml(displayName(call.name) || "—")}</td>
         <td class="num">${escapeHtml(formatMdY(call.date) || "—")}</td>
         <td class="num">${escapeHtml(daysLabel)}</td>
+        <td class="num">${dash(call.price)}</td>
+        <td class="num">${escapeHtml(call.marketCapDisplay || "—")}</td>
       </tr>`;
     })
     .join("");
@@ -892,6 +899,8 @@ function renderCompanies(calls) {
           <th>Company</th>
           <th class="num">Date</th>
           <th class="num">Days until</th>
+          <th class="num">Price</th>
+          <th class="num">Market cap</th>
         </tr>
       </thead>
       <tbody>${body}</tbody>
@@ -1030,14 +1039,37 @@ function carryMetrics(calls) {
     if (!prior) return call;
     const hasRevEst = String(call.revenueEstimateDisplay || "").trim();
     const hasLast = call.lastRevenue || String(call.lastRevenueDisplay || "").trim();
+    const hasPrice = String(call.price || "").trim();
     return {
       ...call,
       lastRevenue: hasLast ? call.lastRevenue : prior.lastRevenue || 0,
       lastRevenueDisplay: hasLast ? call.lastRevenueDisplay : prior.lastRevenueDisplay || "",
       revenueEstimate: hasRevEst ? call.revenueEstimate : prior.revenueEstimate || 0,
       revenueEstimateDisplay: hasRevEst ? call.revenueEstimateDisplay : prior.revenueEstimateDisplay || "",
+      price: hasPrice ? call.price : prior.price || "",
     };
   });
+}
+
+let pricesBusy = false;
+
+async function fillMissingPrices() {
+  if (!state.snapshot || pricesBusy) return;
+  const calls = state.snapshot.calls || [];
+  if (!calls.some((call) => !String(call.price || "").trim() || call.price === "—")) return;
+  pricesBusy = true;
+  try {
+    const next = await enrichCallPrices(calls, {
+      onProgress: (updated) => {
+        state.snapshot = { ...state.snapshot, calls: updated, count: updated.length };
+        if (state.tab === "companies") render();
+      },
+    });
+    state.snapshot = { ...state.snapshot, calls: next, count: next.length };
+    if (state.tab === "companies") render();
+  } finally {
+    pricesBusy = false;
+  }
 }
 
 async function applyCalendar(base, { refreshKeys = true } = {}) {
@@ -1073,6 +1105,7 @@ async function applyCalendar(base, { refreshKeys = true } = {}) {
   else if (state.tab === "company" && state.companySymbol) {
     showCompany(state.companySymbol, state.companyDate);
   }
+  if (state.tab === "companies") await fillMissingPrices();
 }
 
 async function load() {

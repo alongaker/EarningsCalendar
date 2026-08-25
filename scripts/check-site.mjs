@@ -328,7 +328,7 @@ const filled = await enrichSparseCalls(
           ok: true,
           json: async () => ({
             status: { rCode: 200 },
-            data: { symbol: "NVDA", companyName: "NVIDIA Corporation", assetClass: "stocks" },
+            data: { symbol: "NVDA", companyName: "NVIDIA Corporation", assetClass: "stocks", primaryData: { lastSalePrice: "$215.0495" } },
           }),
         };
       }
@@ -347,6 +347,7 @@ const filled = await enrichSparseCalls(
 );
 assert(filled[0].marketCap === 4000000000000, "enrich fills market cap from quote");
 assert(filled[0].name === "NVIDIA Corporation", "enrich fills company name");
+assert(filled[0].price === "$215.05", "enrich fills last sale price");
 assert(parseRevenueCell("$109,417(m)") === 109417000000, "Nasdaq millions revenue cell");
 assert(parseRevenueCell("$8,558(m)") === 8558000000, "parse mid-size quarterly revenue");
 assert(
@@ -425,6 +426,8 @@ assert(html.includes("view-companies"), "index has companies table view");
 assert(html.includes('data-nav="companies"'), "index has Companies menu link");
 const appJs = await readFile(join(root, "app.js"), "utf8");
 assert(appJs.includes("Days until"), "companies table has days-until column");
+assert(appJs.includes("Market cap"), "companies table has market cap column");
+assert(appJs.includes(">Price<") || appJs.includes("th class=\"num\">Price"), "companies table has price column");
 assert(appJs.includes("formatMdY"), "companies table formats announce dates");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");
