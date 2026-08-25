@@ -898,7 +898,7 @@ function renderCompanies(calls) {
           <th>Ticker</th>
           <th>Company</th>
           <th class="num">Date</th>
-          <th class="num">Days until</th>
+          <th class="num">Until Call</th>
           <th class="num">Price</th>
           <th class="num">Market cap</th>
         </tr>
