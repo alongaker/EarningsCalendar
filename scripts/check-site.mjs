@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, formatMdY, daysUntilIso } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, fetchOratsSnapshot, formatMdY, daysUntilIso, formatPctPoints } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, enrichCallPrices, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -437,6 +437,51 @@ try {
 } catch (err) {
   assert(String(err.message).includes("Invalid token"), "ORATS test surfaces token errors");
 }
+
+{
+  const urls = [];
+  const snap = await fetchOratsSnapshot("tok", "NVDA", {
+    fetchImpl: async (url) => {
+      urls.push(String(url));
+      const path = String(url);
+      const row = path.includes("ivrank")
+        ? { ticker: "NVDA", iv: 0.4, ivRank1y: 0.8, ivPct1y: 0.72, ivRank1m: 0.5, ivPct1m: 0.55 }
+        : path.includes("cores")
+          ? {
+              ticker: "NVDA",
+              absAvgErnMv: 5.2,
+              dtExM1: 5,
+              atmIvM1: 55,
+              straPxM1: 12.5,
+              lastErn: "2026-05-28",
+              lastErnTod: 3,
+              ernDate1: "2026-05-28",
+              ernMv1: 6.1,
+              ernStraPct1: 5.8,
+            }
+          : {
+              ticker: "NVDA",
+              impliedMove: 0.074,
+              impliedEarningsMove: 0.074,
+              ieeEarnEffect: 1.9,
+              iv30d: 0.42,
+              exErnIv30d: 0.31,
+              iv10d: 0.5,
+              exErnIv10d: 0.3,
+            };
+      return { ok: true, status: 200, text: async () => JSON.stringify({ data: [row] }) };
+    },
+  });
+  assert(urls.length === 3, "ORATS snapshot uses three endpoints");
+  assert(urls.some((u) => u.includes("/summaries")), "snapshot hits summaries");
+  assert(urls.some((u) => u.includes("/cores")), "snapshot hits cores");
+  assert(urls.some((u) => u.includes("/ivrank")), "snapshot hits ivrank");
+  assert(snap.impliedMove > 7 && snap.impliedMove < 8, "implied move as percent points");
+  assert(formatPctPoints(snap.impliedMove) === "7.4%", "format implied move");
+  assert(snap.ivRank1y === 0.8, "keeps IV rank");
+  assert(snap.front.straddle === 12.5, "front straddle from cores");
+  assert(snap.history.length === 1 && snap.history[0].move > 6, "past earnings move from cores");
+}
 assert(html.includes("filter-toggle"), "index has collapsible filter bar");
 assert(html.includes("Market Cap"), "filter panel labels market cap");
 assert(html.includes("$100M+") && html.includes("$250M+") && html.includes("$500M+"), "market cap chips include mid-size floors");
@@ -450,6 +495,10 @@ assert(appJs.includes("companies-pin"), "ticker and company freeze as one sticky
 assert(appJs.includes("Market cap"), "companies table has market cap column");
 assert(appJs.includes(">Price<") || appJs.includes("th class=\"num\">Price"), "companies table has price column");
 assert(appJs.includes("formatMdY"), "companies table formats announce dates");
+assert(appJs.includes("fetchOratsSnapshot"), "company page can load ORATS snapshot");
+assert(appJs.includes("Implied move"), "company options block shows implied move");
+assert(appJs.includes("Past earnings moves"), "company options block shows past moves");
+assert(!/renderCompanies[\s\S]*fetchOratsSnapshot/.test(appJs), "companies list does not fetch ORATS");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");
 
@@ -511,6 +560,12 @@ try {
   });
   const oratsMissingJson = await oratsMissing.json();
   assert(oratsMissing.status === 400 && oratsMissingJson.error, "ORATS test requires API key");
+  const oratsBadTicker = await fetch("http://127.0.0.1:3456/api/options/orats", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ apiKey: "x", ticker: "-BAD" }),
+  });
+  assert(oratsBadTicker.status === 400, "ORATS snapshot rejects invalid ticker");
   const badCompany = await fetch("http://127.0.0.1:3456/api/company/-BAD");
   assert(badCompany.status === 400, "invalid company symbol");
   const nvda = await fetch("http://127.0.0.1:3456/api/company/NVDA");

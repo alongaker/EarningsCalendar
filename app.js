@@ -1,4 +1,4 @@
-import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap, formatMdY, daysUntilIso } from "./providers.js";
+import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, fetchOratsSnapshot, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap, formatMdY, daysUntilIso, formatPctPoints, formatUsdMoney, ORATS_CACHE_HOURS, ORATS_SNAPSHOT_CALLS } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, enrichCallPrices, hydrateLastRevenue, hydratePrices } from "./company.js";
 
 const TIME_LABEL = {
@@ -11,6 +11,7 @@ const TIME_LABEL = {
 const KEYS_STORAGE = "earningsCalendar.apiKeys.v1";
 const ORDER_STORAGE = "earningsCalendar.apiKeyOrder.v1";
 const NAV_STORAGE = "earningsCalendar.sidenav.v1";
+const ORATS_STORAGE = "earningsCalendar.orats.v1";
 
 const state = {
   base: null,
@@ -28,6 +29,7 @@ const state = {
   companySymbol: "",
   companyDate: "",
   companyCache: {},
+  optionsBySymbol: {},
   sortKey: "",
   sortDir: "desc",
   filtersOpen: false,
@@ -288,6 +290,215 @@ function displayName(value) {
   return stripCompanySuffixes(value) || "";
 }
 
+function optionCell(value) {
+  if (value == null || value === "") return "—";
+  return escapeHtml(String(value));
+}
+
+function parseSpotPrice(value) {
+  const n = Number(String(value || "").replace(/[$,]/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function formatRank(value) {
+  if (value == null || !Number.isFinite(Number(value))) return "";
+  const n = Number(value);
+  const pct = Math.abs(n) <= 1.5 ? n * 100 : n;
+  return `${pct.toFixed(0)}`;
+}
+
+function impliedDollarLabel(movePts, spot) {
+  if (movePts == null || spot == null) return "";
+  return formatUsdMoney(spot * (Number(movePts) / 100));
+}
+
+function straddlePctOfSpot(straddle, spot) {
+  if (straddle == null || spot == null || !spot) return "";
+  return formatPctPoints((Number(straddle) / spot) * 100);
+}
+
+function ratioLabel(impliedPts, avgPts) {
+  if (impliedPts == null || avgPts == null || !avgPts) return "";
+  return `${(Number(impliedPts) / Number(avgPts)).toFixed(2)}×`;
+}
+
+function effectLabel(value) {
+  if (value == null || !Number.isFinite(Number(value))) return "";
+  return `${Number(value).toFixed(2)}×`;
+}
+
+function readOratsCache(ticker) {
+  const ttl = ORATS_CACHE_HOURS * 60 * 60 * 1000;
+  const mem = state.optionsBySymbol[ticker];
+  if (mem?.status === "ok" && mem.snapshot && mem.at && Date.now() - mem.at < ttl) {
+    return mem.snapshot;
+  }
+  try {
+    const bag = JSON.parse(localStorage.getItem(ORATS_STORAGE) || "{}");
+    const hit = bag[ticker];
+    if (hit?.at && hit.data && Date.now() - hit.at < ttl) return hit.data;
+  } catch {}
+  return null;
+}
+
+function writeOratsCache(ticker, snapshot) {
+  const at = Date.now();
+  try {
+    const bag = JSON.parse(localStorage.getItem(ORATS_STORAGE) || "{}");
+    bag[ticker] = { at, data: snapshot };
+    localStorage.setItem(ORATS_STORAGE, JSON.stringify(bag));
+  } catch {}
+  return at;
+}
+
+function tenorRows(snapshot) {
+  const rows = snapshot?.tenors || [];
+  if (!rows.length) return "";
+  return `<section class="history options-block">
+    <h3>IV term structure</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Tenor</th>
+          <th class="num">IV</th>
+          <th class="num">Ex-earnings IV</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map(
+            (row) => `<tr>
+              <td>${escapeHtml(row.label)}</td>
+              <td class="num">${optionCell(formatPctPoints(row.iv))}</td>
+              <td class="num">${optionCell(formatPctPoints(row.exIv))}</td>
+            </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+  </section>`;
+}
+
+function expirationRows(snapshot, spot) {
+  const months = [
+    ["Front month", snapshot?.front],
+    ["Second month", snapshot?.back],
+  ].filter(([, m]) => m && (m.dte != null || m.straddle != null || m.atmIv != null));
+  if (!months.length) return "";
+  return `<section class="history options-block">
+    <h3>Listed expirations</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th></th>
+          <th class="num">DTE</th>
+          <th class="num">ATM IV</th>
+          <th class="num">Straddle</th>
+          <th class="num">Straddle / spot</th>
+          <th>Strikes</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${months
+          .map(([label, m]) => {
+            const strikes =
+              m.loStrike != null && m.hiStrike != null
+                ? `${formatUsdMoney(m.loStrike)}–${formatUsdMoney(m.hiStrike)}`
+                : "";
+            return `<tr>
+              <td>${escapeHtml(label)}</td>
+              <td class="num">${optionCell(m.dte == null ? "" : String(m.dte))}</td>
+              <td class="num">${optionCell(formatPctPoints(m.atmIv))}</td>
+              <td class="num">${optionCell(formatUsdMoney(m.straddle))}</td>
+              <td class="num">${optionCell(straddlePctOfSpot(m.straddle, spot))}</td>
+              <td>${optionCell(strikes)}</td>
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table>
+  </section>`;
+}
+
+function historyMoveRows(snapshot) {
+  const rows = (snapshot?.history || []).filter((row) => row.date || row.move != null);
+  if (!rows.length) return "";
+  return `<section class="history options-block">
+    <h3>Past earnings moves</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th class="num">Actual move</th>
+          <th class="num">Straddle then</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows
+          .map(
+            (row) => `<tr>
+              <td>${optionCell(row.date)}</td>
+              <td class="num">${optionCell(formatPctPoints(row.move))}</td>
+              <td class="num">${optionCell(formatPctPoints(row.straddlePct))}</td>
+            </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+  </section>`;
+}
+
+function renderOptionsBlock(symbol, profile) {
+  if (!state.keys.orats) {
+    return `<section class="history options-block">
+      <h3>Options</h3>
+      <p class="empty">Add an ORATS key in Settings to load implied move, IV rank, straddles, and past earnings moves for this ticker. That uses ${ORATS_SNAPSHOT_CALLS} of 20,000 monthly calls, then caches for ${ORATS_CACHE_HOURS} hours. The Companies list never fetches options.</p>
+    </section>`;
+  }
+  const pack = state.optionsBySymbol[symbol];
+  if (!pack || pack.status === "loading") {
+    return `<section class="history options-block">
+      <h3>Options</h3>
+      <p class="status">Loading ORATS delayed options… ${ORATS_SNAPSHOT_CALLS} API calls for this ticker if it is not already cached.</p>
+    </section>`;
+  }
+  if (pack.status === "err") {
+    return `<section class="history options-block">
+      <h3>Options</h3>
+      <p class="empty">${escapeHtml(pack.error || "Could not load ORATS options.")}</p>
+    </section>`;
+  }
+  const snap = pack.snapshot;
+  if (!snap) return "";
+  const spot = parseSpotPrice(profile?.price);
+  const movePts = snap.impliedMove ?? snap.impliedEarningsMove;
+  return `<section class="history options-block">
+      <h3>Options</h3>
+      <p class="options-lede">ORATS delayed snapshot${snap.asOf ? ` · ${escapeHtml(String(snap.asOf).replace("T", " ").slice(0, 16))}` : ""}${pack.cached ? " · from cache" : ""}. ${ORATS_SNAPSHOT_CALLS} calls per ticker, cached ${ORATS_CACHE_HOURS}h in this browser.</p>
+      <dl class="stat-grid">
+        <div><dt>Implied move</dt><dd>${optionCell(formatPctPoints(movePts))}</dd></div>
+        <div><dt>Implied $</dt><dd>${optionCell(impliedDollarLabel(movePts, spot))}</dd></div>
+        <div><dt>Avg actual move</dt><dd>${optionCell(formatPctPoints(snap.absAvgErnMv))}</dd></div>
+        <div><dt>Implied / avg</dt><dd>${optionCell(ratioLabel(movePts, snap.absAvgErnMv))}</dd></div>
+        <div><dt>Earnings effect</dt><dd>${optionCell(effectLabel(snap.ieeEarnEffect))}</dd></div>
+        <div><dt>IV 30d</dt><dd>${optionCell(formatPctPoints(snap.iv30d || snap.iv))}</dd></div>
+        <div><dt>Ex-earn IV 30d</dt><dd>${optionCell(formatPctPoints(snap.exErnIv30d))}</dd></div>
+        <div><dt>IV rank 1y</dt><dd>${optionCell(formatRank(snap.ivRank1y))}</dd></div>
+        <div><dt>IV %ile 1y</dt><dd>${optionCell(formatRank(snap.ivPct1y))}</dd></div>
+        <div><dt>IV rank 1m</dt><dd>${optionCell(formatRank(snap.ivRank1m))}</dd></div>
+        <div><dt>IV %ile 1m</dt><dd>${optionCell(formatRank(snap.ivPct1m))}</dd></div>
+        <div><dt>IV crush (earn)</dt><dd>${optionCell(effectLabel(snap.ivEarnReturn))}</dd></div>
+        <div><dt>Weeks to call</dt><dd>${optionCell(snap.wksNextErn == null ? "" : Number(snap.wksNextErn).toFixed(1))}</dd></div>
+        <div><dt>Last print</dt><dd>${optionCell([snap.lastErn, snap.lastErnTod].filter(Boolean).join(" · "))}</dd></div>
+        <div><dt>ORATS next earn</dt><dd>${optionCell(snap.nextErn)}</dd></div>
+        <div><dt>Front straddle</dt><dd>${optionCell(formatUsdMoney(snap.front?.straddle))}</dd></div>
+      </dl>
+    </section>
+    ${tenorRows(snap)}
+    ${expirationRows(snap, spot)}
+    ${historyMoveRows(snap)}`;
+}
+
 function epsCell(call) {
   if (call.epsForecast) return escapeHtml(call.epsForecast);
   if (call.lastEpsDisplay) {
@@ -522,15 +733,68 @@ function renderCompany(symbol, profile) {
     ${website}
     ${overview}
     ${callCards}
+    ${renderOptionsBlock(symbol, profile)}
     ${history}
     ${filings}
   `;
 
   els.asOf.textContent = selected ? `Next call ${longDate(selected.date)}` : symbol;
-  els.source.textContent = [profile?.exchange, "Nasdaq", profile?.filings?.length ? "SEC EDGAR" : ""]
+  els.source.textContent = [profile?.exchange, "Nasdaq", profile?.filings?.length ? "SEC EDGAR" : "", state.keys.orats ? "ORATS" : ""]
     .filter(Boolean)
     .join(" · ");
   document.title = `${symbol} — Earnings Calendar`;
+}
+
+async function pingOratsSnapshot(apiKey, ticker) {
+  try {
+    const res = await fetch("/api/options/orats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey, ticker }),
+    });
+    if (res.status === 404) return fetchOratsSnapshot(apiKey, ticker);
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(payload.error || `ORATS ${res.status}`);
+    return payload;
+  } catch (err) {
+    if (!(err instanceof TypeError)) throw err;
+    try {
+      return await fetchOratsSnapshot(apiKey, ticker);
+    } catch {
+      throw new Error("Could not reach ORATS. Run npm start locally for options metrics.");
+    }
+  }
+}
+
+async function loadCompanyOptions(ticker) {
+  if (state.tab !== "company" || state.companySymbol !== ticker) return;
+  if (!state.keys.orats) {
+    state.optionsBySymbol[ticker] = { status: "nokey" };
+    return;
+  }
+  const cached = readOratsCache(ticker);
+  if (cached) {
+    state.optionsBySymbol[ticker] = { status: "ok", snapshot: cached, cached: true, at: Date.now() };
+    if (state.tab === "company" && state.companySymbol === ticker) {
+      renderCompany(ticker, state.companyCache[ticker] || { loading: true });
+    }
+    return;
+  }
+  if (state.optionsBySymbol[ticker]?.status === "loading") return;
+  state.optionsBySymbol[ticker] = { status: "loading" };
+  if (state.tab === "company" && state.companySymbol === ticker) {
+    renderCompany(ticker, state.companyCache[ticker] || { loading: true });
+  }
+  try {
+    const snapshot = await pingOratsSnapshot(state.keys.orats, ticker);
+    const at = writeOratsCache(ticker, snapshot);
+    state.optionsBySymbol[ticker] = { status: "ok", snapshot, cached: false, at };
+  } catch (err) {
+    state.optionsBySymbol[ticker] = { status: "err", error: err.message || "Could not load ORATS options." };
+  }
+  if (state.tab === "company" && state.companySymbol === ticker) {
+    renderCompany(ticker, state.companyCache[ticker] || { loading: true });
+  }
 }
 
 async function showCompany(symbol, date) {
@@ -543,6 +807,7 @@ async function showCompany(symbol, date) {
   state.companyDate = date || "";
   const cached = state.companyCache[ticker];
   renderCompany(ticker, cached || { loading: true });
+  void loadCompanyOptions(ticker);
   if (cached && !cached.loading) {
     hydrateCallsFromProfile(ticker, cached);
     return;

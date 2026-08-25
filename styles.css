@@ -814,6 +814,12 @@ input[type="search"]:focus {
   overflow-wrap: anywhere;
 }
 
+.options-lede {
+  margin: 0 0 12px;
+  color: var(--mute);
+  font-size: 13px;
+}
+
 .upcoming-call {
   margin: 0 0 28px;
   padding: 16px 18px;
@@ -824,7 +830,8 @@ input[type="search"]:focus {
 .upcoming-call h3,
 .history h3,
 .filings h3,
-.overview h3 {
+.overview h3,
+.options-block h3 {
   margin: 0 0 10px;
   font-family: var(--serif);
   font-size: 22px;

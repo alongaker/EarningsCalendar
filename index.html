@@ -161,9 +161,12 @@
 
       <h3 class="keys-list-title" id="options-keys-title">Options-specific API key</h3>
       <p class="keys-rank-hint">
-        Separate from calendar extras. Paste an ORATS token here for options
-        metrics (implied move, IV rank, earnings vol). It stays in this browser
-        and is not ranked with Finnhub or the other earnings sources.
+        Separate from calendar extras. Paste an ORATS token here for the
+        company page (implied move, IV rank, straddles, past earnings moves).
+        Opening a company uses 3 of 20,000 monthly calls, then caches the
+        result in this browser for 12 hours. The Companies list does not
+        fetch options. The token stays in this browser and is not ranked
+        with Finnhub or the other earnings sources.
       </p>
       <div id="options-key-list" class="key-list"></div>
     </section>

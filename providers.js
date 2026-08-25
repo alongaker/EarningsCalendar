@@ -57,7 +57,7 @@ export const OPTIONS_PROVIDERS = [
     id: "orats",
     name: "ORATS",
     blurb:
-      "Options-only key for implied move, IV rank, and earnings vol on the company page. Delayed data, 20,000 requests per month. Not mixed into the Nasdaq calendar.",
+      "Options-only key for the company page (implied move, IV rank, term structure, straddles, past earnings moves). Delayed data, 20,000 requests per month. Three calls per ticker, then cached in this browser. Not mixed into the Nasdaq calendar or Companies list.",
     signup: "https://orats.com/data-api",
     docs: "https://orats.com/docs/delayed-data-api",
     placeholder: "ORATS API token",
@@ -750,4 +750,183 @@ export async function testOratsKey(apiKey, { fetchImpl = fetch } = {}) {
   }
   if (!rows.length) throw new Error("ORATS did not return ticker data for that key");
   return { ok: true, ticker: String(rows[0]?.ticker || "AAPL") };
+}
+
+export const ORATS_SNAPSHOT_CALLS = 3;
+export const ORATS_CACHE_HOURS = 12;
+
+const ORATS_TOD = {
+  1: "Unknown",
+  2: "Before open",
+  3: "After close",
+  4: "During session",
+};
+
+function oratsRows(payload) {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
+function oratsNum(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function oratsToPctPoints(value) {
+  const n = oratsNum(value);
+  if (n == null) return null;
+  return Math.abs(n) <= 2 ? n * 100 : n;
+}
+
+export function formatPctPoints(points, digits = 1) {
+  if (points == null || !Number.isFinite(Number(points))) return "";
+  const n = Number(points);
+  const d = Math.abs(n) >= 10 ? Math.min(digits, 1) : digits;
+  return `${n.toFixed(d)}%`;
+}
+
+export function formatUsdMoney(value) {
+  const n = oratsNum(value);
+  if (n == null) return "";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
+export function oratsTimeOfDay(code) {
+  const n = oratsNum(code);
+  if (n == null) return "";
+  return ORATS_TOD[n] || "";
+}
+
+function oratsDateLabel(value) {
+  if (value == null || value === "") return "";
+  const raw = String(value);
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return formatMdY(`${iso[1]}-${iso[2]}-${iso[3]}`);
+  const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (slash) {
+    const year = slash[3].length === 2 ? slash[3] : slash[3].slice(-2);
+    return `${slash[1].padStart(2, "0")}/${slash[2].padStart(2, "0")}/${year}`;
+  }
+  return raw.slice(0, 10);
+}
+
+async function fetchOratsEndpoint(path, apiKey, ticker, fetchImpl) {
+  const url = new URL(`https://api.orats.io/datav2/${path}`);
+  url.searchParams.set("token", apiKey);
+  url.searchParams.set("ticker", ticker);
+  const payload = await fetchJson(url, { fetchImpl });
+  const rows = oratsRows(payload);
+  const err = payload?.message || payload?.error;
+  if (err && !rows.length) {
+    throw new Error(typeof err === "string" ? err : providerError(payload, 200));
+  }
+  return rows[0] || null;
+}
+
+function pickUpdatedAt(...rows) {
+  for (const row of rows) {
+    if (row?.updatedAt) return String(row.updatedAt);
+    if (row?.tradeDate) return String(row.tradeDate);
+    if (row?.snapShotDate) return String(row.snapShotDate);
+  }
+  return "";
+}
+
+function coreEarningsHistory(core) {
+  if (!core) return [];
+  const rows = [];
+  for (let i = 1; i <= 12; i += 1) {
+    const date = core[`ernDate${i}`];
+    const move = oratsNum(core[`ernMv${i}`]);
+    const straddlePct = oratsNum(core[`ernStraPct${i}`]);
+    if (date == null && move == null && straddlePct == null) continue;
+    rows.push({
+      date: oratsDateLabel(date),
+      move: oratsToPctPoints(move),
+      straddlePct: oratsToPctPoints(straddlePct),
+    });
+  }
+  return rows;
+}
+
+export function normalizeOratsSnapshot(ticker, { summaries = null, cores = null, ivrank = null } = {}) {
+  const s = summaries || {};
+  const c = cores || {};
+  const r = ivrank || {};
+  const tenors = [
+    ["10d", "iv10d", "exErnIv10d"],
+    ["20d", "iv20d", "exErnIv20d"],
+    ["30d", "iv30d", "exErnIv30d"],
+    ["60d", "iv60d", "exErnIv60d"],
+    ["90d", "iv90d", "exErnIv90d"],
+    ["6m", "iv6m", "exErnIv6m"],
+  ].map(([label, ivKey, exKey]) => ({
+    label,
+    iv: oratsToPctPoints(s[ivKey]),
+    exIv: oratsToPctPoints(s[exKey]),
+  }));
+  return {
+    ticker: canonicalSymbol(ticker),
+    asOf: pickUpdatedAt(s, c, r),
+    callsUsed: ORATS_SNAPSHOT_CALLS,
+    impliedMove: oratsToPctPoints(s.impliedMove ?? s.impliedEarningsMove),
+    impliedEarningsMove: oratsToPctPoints(s.impliedEarningsMove),
+    ieeEarnEffect: oratsNum(s.ieeEarnEffect ?? c.impliedIee),
+    iv30d: oratsToPctPoints(s.iv30d ?? r.iv),
+    exErnIv30d: oratsToPctPoints(s.exErnIv30d),
+    iv: oratsToPctPoints(r.iv),
+    ivRank1m: oratsNum(r.ivRank1m),
+    ivPct1m: oratsNum(r.ivPct1m),
+    ivRank1y: oratsNum(r.ivRank1y),
+    ivPct1y: oratsNum(r.ivPct1y),
+    absAvgErnMv: oratsToPctPoints(c.absAvgErnMv),
+    lastErn: oratsDateLabel(c.lastErn),
+    lastErnTod: oratsTimeOfDay(c.lastErnTod),
+    nextErn: oratsDateLabel(c.nextErn),
+    wksNextErn: oratsNum(c.wksNextErn),
+    ivEarnReturn: oratsNum(c.ivEarnReturn),
+    tenors,
+    front: {
+      dte: oratsNum(c.dtExM1),
+      atmIv: oratsToPctPoints(c.atmIvM1),
+      straddle: oratsNum(c.straPxM1),
+      smoothStraddle: oratsNum(c.smoothStraPxM1),
+      loStrike: oratsNum(c.loStrikeM1),
+      hiStrike: oratsNum(c.hiStrikeM1),
+    },
+    back: {
+      dte: oratsNum(c.dtExM2 ?? c.dtExm2),
+      atmIv: oratsToPctPoints(c.atmIvM2),
+      straddle: oratsNum(c.straPxM2),
+      smoothStraddle: oratsNum(c.smoothStrPxM2),
+      loStrike: oratsNum(c.loStrikeM2),
+      hiStrike: oratsNum(c.hiStrikeM2),
+    },
+    history: coreEarningsHistory(c),
+  };
+}
+
+export async function fetchOratsSnapshot(apiKey, ticker, { fetchImpl = fetch } = {}) {
+  const key = String(apiKey || "").trim();
+  const symbol = canonicalSymbol(ticker);
+  if (!key) throw new Error("API key required");
+  if (!symbol) throw new Error("Ticker required");
+  const settled = await Promise.allSettled([
+    fetchOratsEndpoint("summaries", key, symbol, fetchImpl),
+    fetchOratsEndpoint("cores", key, symbol, fetchImpl),
+    fetchOratsEndpoint("ivrank", key, symbol, fetchImpl),
+  ]);
+  const [summaries, cores, ivrank] = settled.map((item) => (item.status === "fulfilled" ? item.value : null));
+  if (!summaries && !cores && !ivrank) {
+    const first = settled.find((item) => item.status === "rejected");
+    throw new Error(first?.reason?.message || "ORATS returned no options data");
+  }
+  return normalizeOratsSnapshot(symbol, { summaries, cores, ivrank });
 }

@@ -5,7 +5,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { fetchUpcoming } from "./scripts/earnings-lib.mjs";
-import { fetchProvider, providerIds, testOratsKey, windowUpcoming, marketDateIso } from "./providers.js";
+import { fetchProvider, providerIds, testOratsKey, fetchOratsSnapshot, windowUpcoming, marketDateIso } from "./providers.js";
 import {
   fetchCompanyBundle,
   fetchNasdaqQuoteLite,
@@ -249,6 +249,16 @@ const server = createServer(async (req, res) => {
       const apiKey = apiKeyFrom(req, body);
       if (!String(apiKey).trim()) {
         sendJson(res, 400, { error: "API key required" });
+        return;
+      }
+      const ticker = String(body.ticker || "").trim().toUpperCase();
+      if (ticker) {
+        if (!isSymbol(ticker)) {
+          sendJson(res, 400, { error: "Invalid ticker" });
+          return;
+        }
+        const snapshot = await fetchOratsSnapshot(apiKey, ticker);
+        sendJson(res, 200, snapshot);
         return;
       }
       const result = await testOratsKey(apiKey);
