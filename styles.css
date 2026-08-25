@@ -503,27 +503,15 @@ input[type="search"]:focus {
   white-space: nowrap;
 }
 
-.companies-board .table th:nth-child(2),
-.companies-board .table td:nth-child(2) {
-  max-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .companies-board .table th:nth-child(3),
 .companies-board .table td:nth-child(3),
 .companies-board .table th:nth-child(4),
-.companies-board .table td:nth-child(4) {
-  width: 1%;
-  white-space: nowrap;
-}
-
+.companies-board .table td:nth-child(4),
 .companies-board .table th:nth-child(5),
 .companies-board .table td:nth-child(5),
 .companies-board .table th:nth-child(6),
 .companies-board .table td:nth-child(6) {
-  width: 6.6rem;
+  width: 7.2rem;
   white-space: nowrap;
 }
 
