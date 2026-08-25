@@ -496,10 +496,14 @@ input[type="search"]:focus {
   table-layout: fixed;
 }
 
+.companies-board .table th,
+.companies-board .table td {
+  text-align: right;
+}
+
 .companies-board .table th:nth-child(1),
 .companies-board .table td:nth-child(1) {
   width: 4.25rem;
-  padding-right: 6px;
   white-space: nowrap;
 }
 
