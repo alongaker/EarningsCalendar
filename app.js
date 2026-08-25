@@ -755,18 +755,49 @@ async function pingOratsSnapshot(apiKey, ticker) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ apiKey, ticker }),
     });
-    if (res.status === 404) return fetchOratsSnapshot(apiKey, ticker);
-    const payload = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(payload.error || `ORATS ${res.status}`);
-    return payload;
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const payload = await res.json();
+      if (res.ok && payload && (payload.ticker || payload.front || payload.callsUsed)) return payload;
+      if (res.status !== 404 && res.status !== 405) {
+        throw new Error(payload.error || `ORATS ${res.status}`);
+      }
+    }
   } catch (err) {
-    if (!(err instanceof TypeError)) throw err;
-    try {
-      return await fetchOratsSnapshot(apiKey, ticker);
-    } catch {
-      throw new Error("Could not reach ORATS. Run npm start locally for options metrics.");
+    const msg = err.message || "";
+    if (msg && !/Failed to fetch|NetworkError|Unexpected token|JSON/i.test(msg)) {
+      throw err;
     }
   }
+  try {
+    return await fetchOratsSnapshot(apiKey, ticker);
+  } catch {
+    throw new Error("Could not reach ORATS from this page.");
+  }
+}
+
+async function pingOratsKey(apiKey) {
+  try {
+    const res = await fetch("/api/options/orats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey }),
+    });
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const payload = await res.json();
+      if (res.ok && payload?.ok) return payload;
+      if (res.status !== 404 && res.status !== 405) {
+        throw new Error(payload.error || `ORATS ${res.status}`);
+      }
+    }
+  } catch (err) {
+    const msg = err.message || "";
+    if (msg && !/Failed to fetch|NetworkError|Unexpected token|JSON/i.test(msg)) {
+      throw err;
+    }
+  }
+  return testOratsKey(apiKey);
 }
 
 async function loadCompanyOptions(ticker) {
@@ -1162,6 +1193,11 @@ function renderCompanies(calls) {
       <h3>Upcoming</h3>
       <span>${rows.length} compan${rows.length === 1 ? "y" : "ies"}</span>
     </div>
+    ${
+      state.keys.orats
+        ? `<p class="options-lede">Options data is on each company page — click a row. This list does not call ORATS (that would be one request per ticker).</p>`
+        : ""
+    }
     <div class="companies-scroll">
     <div class="companies-grid">
       <div class="companies-grid__head">
@@ -1660,27 +1696,6 @@ els.keyList.addEventListener("click", async (event) => {
   await applyCalendar(state.base);
   renderKeysPage();
 });
-
-async function pingOratsKey(apiKey) {
-  try {
-    const res = await fetch("/api/options/orats", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey }),
-    });
-    if (res.status === 404) return testOratsKey(apiKey);
-    const payload = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(payload.error || `ORATS ${res.status}`);
-    return payload;
-  } catch (err) {
-    if (!(err instanceof TypeError)) throw err;
-    try {
-      return await testOratsKey(apiKey);
-    } catch {
-      throw new Error("Could not reach ORATS. Run npm start locally to test this key.");
-    }
-  }
-}
 
 els.optionsKeyList?.addEventListener("click", async (event) => {
   const saveId = event.target.dataset.optionsSave;

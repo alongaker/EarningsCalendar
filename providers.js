@@ -614,12 +614,14 @@ function providerError(payload, status) {
 }
 
 async function fetchJson(url, { fetchImpl = fetch, headers = {} } = {}) {
+  const extra = { ...headers };
+  const initHeaders = {
+    Accept: "application/json,text/csv,text/plain,*/*",
+    ...extra,
+  };
+  if (typeof window === "undefined") initHeaders["User-Agent"] = UA;
   const res = await fetchImpl(url, {
-    headers: {
-      "User-Agent": UA,
-      Accept: "application/json,text/csv,text/plain,*/*",
-      ...headers,
-    },
+    headers: initHeaders,
   });
   const text = await res.text();
   let payload = text;
