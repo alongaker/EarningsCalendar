@@ -498,13 +498,9 @@ input[type="search"]:focus {
 
 .companies-board .table th:nth-child(1),
 .companies-board .table td:nth-child(1) {
-  width: 6.4rem;
+  width: 4.25rem;
+  padding-right: 6px;
   white-space: nowrap;
-}
-
-.companies-board .table th:nth-child(3),
-.companies-board .table td:nth-child(3) {
-  border-left: 2px solid var(--cream);
 }
 
 .companies-board .table th:nth-child(3),
