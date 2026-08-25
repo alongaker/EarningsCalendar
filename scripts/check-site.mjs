@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
 import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, formatMdY, daysUntilIso } from "../providers.js";
-import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
+import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, enrichCallPrices, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -348,6 +348,26 @@ const filled = await enrichSparseCalls(
 assert(filled[0].marketCap === 4000000000000, "enrich fills market cap from quote");
 assert(filled[0].name === "NVIDIA Corporation", "enrich fills company name");
 assert(filled[0].price === "$215.05", "enrich fills last sale price");
+
+const priced = await enrichCallPrices(
+  [{ date: "2026-08-26", symbol: "MSFT", name: "Microsoft Corporation", marketCap: 1e12, price: "" }],
+  {
+    fetchImpl: async (url) => {
+      const u = String(url);
+      if (u.includes("/info") && u.includes("MSFT")) {
+        return {
+          ok: true,
+          json: async () => ({
+            status: { rCode: 200 },
+            data: { symbol: "MSFT", primaryData: { lastSalePrice: "$180.10" } },
+          }),
+        };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    },
+  }
+);
+assert(priced[0].price === "$180.10", "price enrich uses Nasdaq info last sale");
 assert(parseRevenueCell("$109,417(m)") === 109417000000, "Nasdaq millions revenue cell");
 assert(parseRevenueCell("$8,558(m)") === 8558000000, "parse mid-size quarterly revenue");
 assert(
@@ -425,7 +445,7 @@ assert(html.includes("view-company"), "index has company view");
 assert(html.includes("view-companies"), "index has companies table view");
 assert(html.includes('data-nav="companies"'), "index has Companies menu link");
 const appJs = await readFile(join(root, "app.js"), "utf8");
-assert(appJs.includes("Days until"), "companies table has days-until column");
+assert(appJs.includes(">Until<") || appJs.includes("th class=\"num\">Until"), "companies table has until column");
 assert(appJs.includes("Market cap"), "companies table has market cap column");
 assert(appJs.includes(">Price<") || appJs.includes("th class=\"num\">Price"), "companies table has price column");
 assert(appJs.includes("formatMdY"), "companies table formats announce dates");
@@ -497,6 +517,8 @@ try {
   assert(nvda.ok && nvdaJson.symbol === "NVDA" && nvdaJson.price, "company profile API");
   assert(Array.isArray(nvdaJson.filings) && nvdaJson.filings.length > 0, "SEC filings on company page");
   assert(nvdaJson.cik, "SEC CIK");
+  const badPrice = await fetch("http://127.0.0.1:3456/api/price/-BAD");
+  assert(badPrice.status === 400, "invalid price symbol");
   const quote = await fetch("http://127.0.0.1:3456/api/quote/NVDA");
   const quoteJson = await quote.json();
   assert(quote.ok && quoteJson.marketCap > 0, "quote lite API");

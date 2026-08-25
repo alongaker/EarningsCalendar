@@ -9,6 +9,7 @@ import { fetchProvider, providerIds, testOratsKey, windowUpcoming, marketDateIso
 import {
   fetchCompanyBundle,
   fetchNasdaqQuoteLite,
+  fetchNasdaqPrice,
   fetchLastQuarterRevenue,
   isSymbol,
 } from "./company.js";
@@ -178,6 +179,26 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  const priceMatch = url.pathname.match(/^\/api\/price\/([^/]+)$/);
+  if (priceMatch && req.method === "GET") {
+    const symbol = decodeURIComponent(priceMatch[1] || "").toUpperCase();
+    if (!isSymbol(symbol)) {
+      sendJson(res, 400, { error: "Invalid symbol" });
+      return;
+    }
+    try {
+      const data = await fetchNasdaqPrice(symbol);
+      if (!data?.price) {
+        sendJson(res, 404, { error: "Price not found" });
+        return;
+      }
+      sendJson(res, 200, data);
+    } catch (err) {
+      sendJson(res, 502, { error: err.message || "Price lookup failed" });
+    }
+    return;
+  }
+
   const revenueMatch = url.pathname.match(/^\/api\/revenue\/([^/]+)$/);
   if (revenueMatch && req.method === "GET") {
     const symbol = decodeURIComponent(revenueMatch[1] || "").toUpperCase();
@@ -248,5 +269,6 @@ server.listen(PORT, HOST, () => {
   console.log("Options:  POST /api/options/orats");
   console.log("Company:  GET  /api/company/NVDA");
   console.log("Quote:    GET  /api/quote/NVDA");
+  console.log("Price:   GET  /api/price/NVDA");
   console.log("Revenue: GET  /api/revenue/AAPL");
 });

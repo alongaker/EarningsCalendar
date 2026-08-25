@@ -197,7 +197,7 @@ export async function fetchNasdaqQuoteLite(symbol, { fetchImpl = fetch, withEps 
   let data = {
     symbol: ticker,
     name: formatCompanyName((info.companyName || "").replace(/\s+Common Stock$/i, "")),
-    price: roundToHundredth(info?.primaryData?.lastSalePrice || ""),
+    price: val(info?.primaryData?.lastSalePrice),
     marketCap,
     marketCapDisplay: formatMarketCap(marketCap),
     lastEpsDisplay: "",
@@ -462,9 +462,46 @@ function applyPrices(calls, prices) {
 }
 
 async function lookupPrice(symbol, { fetchImpl } = {}) {
-  const quote = await lookupQuote(symbol, { fetchImpl, withEps: false });
-  if (quote?.price) return quote;
-  return null;
+  const ticker = String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
+  const cached = quoteCache.get(ticker);
+  if (cached?.data?.price) return cached.data;
+  try {
+    if (typeof window !== "undefined") {
+      const res = await fetch(`/api/price/${encodeURIComponent(ticker)}`, { cache: "no-store" });
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const payload = await res.json();
+        if (res.ok && payload?.price) return payload;
+      }
+    }
+  } catch {
+    // Fall through to a direct Nasdaq lookup.
+  }
+  return fetchNasdaqPrice(ticker, { fetchImpl });
+}
+
+export async function fetchNasdaqPrice(symbol, { fetchImpl = fetch } = {}) {
+  const ticker = String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
+  if (!isSymbol(ticker)) return null;
+  const cached = quoteCache.get(ticker);
+  if (cached?.data?.price && Date.now() - cached.at < 10 * 60 * 1000) {
+    return { symbol: ticker, price: cached.data.price };
+  }
+  let info = null;
+  for (const assetclass of ["stocks", "etf"]) {
+    try {
+      info = await nasdaqJson(
+        `/api/quote/${encodeURIComponent(ticker)}/info?assetclass=${assetclass}`,
+        { fetchImpl }
+      );
+      break;
+    } catch {
+      info = null;
+    }
+  }
+  const price = val(info?.primaryData?.lastSalePrice);
+  if (!price) return null;
+  return { symbol: ticker, price };
 }
 
 export async function enrichCallPrices(calls, { fetchImpl = fetch, onProgress } = {}) {

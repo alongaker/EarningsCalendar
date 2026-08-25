@@ -898,7 +898,7 @@ function renderCompanies(calls) {
           <th>Ticker</th>
           <th>Company</th>
           <th class="num">Date</th>
-          <th class="num">Days until</th>
+          <th class="num">Until</th>
           <th class="num">Price</th>
           <th class="num">Market cap</th>
         </tr>
@@ -1052,12 +1052,18 @@ function carryMetrics(calls) {
 }
 
 let pricesBusy = false;
+let pricesQueued = false;
 
 async function fillMissingPrices() {
-  if (!state.snapshot || pricesBusy) return;
+  if (!state.snapshot) return;
+  if (pricesBusy) {
+    pricesQueued = true;
+    return;
+  }
   const calls = state.snapshot.calls || [];
   if (!calls.some((call) => !String(call.price || "").trim() || call.price === "—")) return;
   pricesBusy = true;
+  pricesQueued = false;
   try {
     const next = await enrichCallPrices(calls, {
       onProgress: (updated) => {
@@ -1069,6 +1075,7 @@ async function fillMissingPrices() {
     if (state.tab === "companies") render();
   } finally {
     pricesBusy = false;
+    if (pricesQueued) fillMissingPrices();
   }
 }
 
