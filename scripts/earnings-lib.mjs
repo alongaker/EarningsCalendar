@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { formatCompanyName, startOfMarketDay, parseMarketCap, formatMarketCap, isOperatingCompany, keepCalendarRow } from "../providers.js";
-import { enrichLastRevenue } from "../company.js";
+import { enrichLastRevenue, enrichCallPrices } from "../company.js";
 
 export { parseMarketCap, formatMarketCap };
 
@@ -115,6 +115,7 @@ if (isCli) {
   const days = Number(process.env.EARNINGS_DAYS || 21);
   const snapshot = await fetchUpcoming({ days });
   snapshot.calls = await enrichLastRevenue(snapshot.calls);
+  snapshot.calls = await enrichCallPrices(snapshot.calls);
   snapshot.count = snapshot.calls.length;
   await mkdir(dirname(outFile), { recursive: true });
   await writeFile(outFile, `${JSON.stringify(snapshot)}\n`);

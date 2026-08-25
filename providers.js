@@ -382,6 +382,7 @@ function baseCall(partial) {
     revenueEstimateDisplay: partial.revenueEstimateDisplay || formatRevenue(revenueEstimate),
     lastRevenue: Number(partial.lastRevenue) || 0,
     lastRevenueDisplay: partial.lastRevenueDisplay || "",
+    price: partial.price || "",
     epsActual: partial.epsActual || "",
     sources: partial.sources || [],
   };
@@ -559,6 +560,7 @@ function mergePair(prev, call) {
     lastRevenueDisplay: nonempty(prev.lastRevenueDisplay)
       ? prev.lastRevenueDisplay
       : call.lastRevenueDisplay,
+    price: nonempty(prev.price) ? prev.price : call.price || "",
     epsActual: nonempty(prev.epsActual) ? prev.epsActual : call.epsActual,
     sources: [...new Set([...(prev.sources || []), ...(call.sources || [])])],
   };

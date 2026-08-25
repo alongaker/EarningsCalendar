@@ -1,5 +1,5 @@
 import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap, formatMdY, daysUntilIso } from "./providers.js";
-import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, enrichCallPrices, hydrateLastRevenue } from "./company.js";
+import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, enrichCallPrices, hydrateLastRevenue, hydratePrices } from "./company.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -1068,11 +1068,11 @@ async function fillMissingPrices() {
     const next = await enrichCallPrices(calls, {
       onProgress: (updated) => {
         state.snapshot = { ...state.snapshot, calls: updated, count: updated.length };
-        if (state.tab === "companies") render();
+        if (state.tab === "companies" || state.tab === "calendar") render();
       },
     });
     state.snapshot = { ...state.snapshot, calls: next, count: next.length };
-    if (state.tab === "companies") render();
+    if (state.tab === "companies" || state.tab === "calendar") render();
   } finally {
     pricesBusy = false;
     if (pricesQueued) fillMissingPrices();
@@ -1084,7 +1084,7 @@ async function applyCalendar(base, { refreshKeys = true } = {}) {
   const merged = refreshKeys ? await enrichFromKeys(windowed) : mergeCachedExtras(windowed);
   const named = {
     ...merged,
-    calls: hydrateLastRevenue(carryMetrics(merged.calls || [])).map((c) => ({
+    calls: hydratePrices(hydrateLastRevenue(carryMetrics(merged.calls || []))).map((c) => ({
       ...c,
       name: displayName(c.name),
     })),
@@ -1112,7 +1112,7 @@ async function applyCalendar(base, { refreshKeys = true } = {}) {
   else if (state.tab === "company" && state.companySymbol) {
     showCompany(state.companySymbol, state.companyDate);
   }
-  if (state.tab === "companies") await fillMissingPrices();
+  await fillMissingPrices();
 }
 
 async function load() {

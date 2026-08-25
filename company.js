@@ -373,6 +373,85 @@ export function hydrateLastRevenue(calls) {
   );
 }
 
+const PRICE_STORE = "earningsCalendar.lastPrice.v1";
+const PRICE_TTL_MS = 6 * 60 * 60 * 1000;
+const KEYS_STORE = "earningsCalendar.apiKeys.v1";
+
+function formatQuotePrice(value) {
+  const rounded = roundToHundredth(value);
+  if (rounded === null || rounded === undefined || rounded === "") return "";
+  const s = String(rounded).trim();
+  if (!s || s === "—" || s === "-") return "";
+  return s.startsWith("$") ? s : `$${s}`;
+}
+
+function readPriceStore() {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = JSON.parse(localStorage.getItem(PRICE_STORE) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberPrice(ticker, price) {
+  const formatted = formatQuotePrice(price);
+  if (!formatted) return;
+  const data = { price: formatted };
+  quoteCache.set(ticker, { at: Date.now(), data: { ...(quoteCache.get(ticker)?.data || {}), ...data } });
+  if (typeof localStorage === "undefined") return;
+  try {
+    const store = readPriceStore();
+    store[ticker] = { price: formatted, at: Date.now() };
+    localStorage.setItem(PRICE_STORE, JSON.stringify(store));
+  } catch {
+    // Ignore quota errors.
+  }
+}
+
+function cachedPrice(ticker) {
+  const mem = quoteCache.get(ticker);
+  if (mem?.data?.price && Date.now() - mem.at < PRICE_TTL_MS) return mem.data.price;
+  const saved = readPriceStore()[ticker];
+  if (saved?.price && Date.now() - (saved.at || 0) < PRICE_TTL_MS) {
+    quoteCache.set(ticker, { at: saved.at || Date.now(), data: { price: saved.price } });
+    return saved.price;
+  }
+  return "";
+}
+
+export function hydratePrices(calls) {
+  return (calls || []).map((call) => {
+    if (nonemptyField(call.price)) return call;
+    const price = cachedPrice(canonicalSymbol(call.symbol));
+    return price ? { ...call, price } : call;
+  });
+}
+
+function extraApiKey(id) {
+  if (typeof localStorage === "undefined") return "";
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEYS_STORE) || "{}");
+    return String(raw?.[id] || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+async function fetchFinnhubPrice(symbol, { fetchImpl = fetch } = {}) {
+  const token = extraApiKey("finnhub");
+  if (!token) return null;
+  const url = new URL("https://finnhub.io/api/v1/quote");
+  url.searchParams.set("symbol", symbol);
+  url.searchParams.set("token", token);
+  const res = await fetchImpl(url);
+  if (!res.ok) return null;
+  const payload = await res.json();
+  const price = formatQuotePrice(payload?.c);
+  return price ? { symbol, price } : null;
+}
+
 async function lookupRevenue(symbol, { fetchImpl } = {}) {
   const ticker = canonicalSymbol(symbol);
   const cached = cachedRevenue(ticker);
@@ -455,29 +534,44 @@ async function lookupQuote(symbol, { fetchImpl, withEps } = {}) {
 
 function applyPrices(calls, prices) {
   return calls.map((call) => {
-    const quote = prices.get(call.symbol);
-    if (!quote || !nonemptyField(quote.price) || nonemptyField(call.price)) return call;
-    return { ...call, price: quote.price };
+    const quote = prices.get(call.symbol) || prices.get(canonicalSymbol(call.symbol));
+    const price = formatQuotePrice(quote?.price);
+    if (!price || nonemptyField(call.price)) return call;
+    return { ...call, price };
   });
 }
 
 async function lookupPrice(symbol, { fetchImpl } = {}) {
   const ticker = String(symbol || "").trim().toUpperCase().replace(/-/g, ".");
-  const cached = quoteCache.get(ticker);
-  if (cached?.data?.price) return cached.data;
+  const saved = cachedPrice(ticker);
+  if (saved) return { symbol: ticker, price: saved };
   try {
     if (typeof window !== "undefined") {
       const res = await fetch(`/api/price/${encodeURIComponent(ticker)}`, { cache: "no-store" });
       const contentType = res.headers.get("content-type") || "";
       if (contentType.includes("application/json")) {
         const payload = await res.json();
-        if (res.ok && payload?.price) return payload;
+        if (res.ok && payload?.price) {
+          rememberPrice(ticker, payload.price);
+          return { symbol: ticker, price: formatQuotePrice(payload.price) };
+        }
       }
     }
   } catch {
-    // Fall through to a direct Nasdaq lookup.
+    // Fall through.
   }
-  return fetchNasdaqPrice(ticker, { fetchImpl });
+  try {
+    const finnhub = await fetchFinnhubPrice(ticker, { fetchImpl });
+    if (finnhub?.price) {
+      rememberPrice(ticker, finnhub.price);
+      return finnhub;
+    }
+  } catch {
+    // Fall through to Nasdaq.
+  }
+  const nasdaq = await fetchNasdaqPrice(ticker, { fetchImpl });
+  if (nasdaq?.price) rememberPrice(ticker, nasdaq.price);
+  return nasdaq;
 }
 
 export async function fetchNasdaqPrice(symbol, { fetchImpl = fetch } = {}) {
@@ -501,7 +595,10 @@ export async function fetchNasdaqPrice(symbol, { fetchImpl = fetch } = {}) {
   }
   const price = val(info?.primaryData?.lastSalePrice);
   if (!price) return null;
-  return { symbol: ticker, price };
+  const formatted = formatQuotePrice(price);
+  if (!formatted) return null;
+  rememberPrice(ticker, formatted);
+  return { symbol: ticker, price: formatted };
 }
 
 export async function enrichCallPrices(calls, { fetchImpl = fetch, onProgress } = {}) {
@@ -520,7 +617,7 @@ export async function enrichCallPrices(calls, { fetchImpl = fetch, onProgress } 
     const data = await lookupPrice(symbol, { fetchImpl });
     if (data?.price) found.set(symbol, data);
     done += 1;
-    if (onProgress && done % 12 === 0) onProgress(applyPrices(calls, found));
+    if (onProgress && done % 5 === 0) onProgress(applyPrices(calls, found));
   });
   return applyPrices(calls, found);
 }
