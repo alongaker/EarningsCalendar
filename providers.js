@@ -52,12 +52,36 @@ export const PROVIDERS = [
   },
 ];
 
+export const OPTIONS_PROVIDERS = [
+  {
+    id: "orats",
+    name: "ORATS",
+    blurb:
+      "Options-only key for implied move, IV rank, and earnings vol on the company page. Delayed data, 20,000 requests per month. Not mixed into the Nasdaq calendar.",
+    signup: "https://orats.com/data-api",
+    docs: "https://orats.com/docs/delayed-data-api",
+    placeholder: "ORATS API token",
+  },
+];
+
 export function providerIds() {
   return PROVIDERS.map((p) => p.id);
 }
 
+export function optionProviderIds() {
+  return OPTIONS_PROVIDERS.map((p) => p.id);
+}
+
 export function providerById(id) {
   return PROVIDERS.find((p) => p.id === id) || null;
+}
+
+export function optionProviderById(id) {
+  return OPTIONS_PROVIDERS.find((p) => p.id === id) || null;
+}
+
+export function allKeyProviders() {
+  return [...PROVIDERS, ...OPTIONS_PROVIDERS];
 }
 
 export function providersByName() {
@@ -688,4 +712,24 @@ export async function fetchProvider(id, apiKey, { from, to, fetchImpl = fetch } 
   }
 
   throw new Error(`Unknown provider: ${id}`);
+}
+
+export async function testOratsKey(apiKey, { fetchImpl = fetch } = {}) {
+  const key = String(apiKey || "").trim();
+  if (!key) throw new Error("API key required");
+  const url = new URL("https://api.orats.io/datav2/tickers");
+  url.searchParams.set("token", key);
+  url.searchParams.set("ticker", "AAPL");
+  const payload = await fetchJson(url, { fetchImpl });
+  const rows = Array.isArray(payload?.data)
+    ? payload.data
+    : Array.isArray(payload)
+      ? payload
+      : [];
+  const err = payload?.message || payload?.error;
+  if (err && !rows.length) {
+    throw new Error(typeof err === "string" ? err : providerError(payload, 200));
+  }
+  if (!rows.length) throw new Error("ORATS did not return ticker data for that key");
+  return { ok: true, ticker: String(rows[0]?.ticker || "AAPL") };
 }

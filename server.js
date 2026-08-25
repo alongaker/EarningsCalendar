@@ -5,7 +5,7 @@ import { extname, join, normalize, resolve, sep } from "node:path";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { fetchUpcoming } from "./scripts/earnings-lib.mjs";
-import { fetchProvider, providerIds, windowUpcoming, marketDateIso } from "./providers.js";
+import { fetchProvider, providerIds, testOratsKey, windowUpcoming, marketDateIso } from "./providers.js";
 import {
   fetchCompanyBundle,
   fetchNasdaqQuoteLite,
@@ -222,6 +222,22 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/api/options/orats" && req.method === "POST") {
+    try {
+      const body = await readJson(req);
+      const apiKey = apiKeyFrom(req, body);
+      if (!String(apiKey).trim()) {
+        sendJson(res, 400, { error: "API key required" });
+        return;
+      }
+      const result = await testOratsKey(apiKey);
+      sendJson(res, 200, result);
+    } catch (err) {
+      sendJson(res, 502, { error: err.message || "ORATS request failed" });
+    }
+    return;
+  }
+
   serveStatic(req, res);
 });
 
@@ -229,6 +245,7 @@ server.listen(PORT, HOST, () => {
   console.log(`Earnings Calendar running at http://localhost:${PORT}`);
   console.log("Live API:  GET /api/earnings");
   console.log("Provider: POST /api/provider/{finnhub|fmp|alphavantage|apininjas|eodhd|twelvedata}");
+  console.log("Options:  POST /api/options/orats");
   console.log("Company:  GET  /api/company/NVDA");
   console.log("Quote:    GET  /api/quote/NVDA");
   console.log("Revenue: GET  /api/revenue/AAPL");

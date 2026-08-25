@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -381,6 +381,38 @@ assert(gone.length === 0, "drop tickers Nasdaq does not recognize");
 const html = await readFile(join(root, "index.html"), "utf8");
 assert(html.includes("Earnings Calendar"), "index has title");
 assert(html.includes("API Key Management"), "index has API keys page");
+assert(html.includes("options-keys-title"), "index has options-specific API key section");
+assert(html.includes("options-key-list"), "index has options key list");
+assert(html.includes("Options-specific API key"), "options key heading");
+assert(OPTIONS_PROVIDERS.some((p) => p.id === "orats"), "ORATS is the options provider");
+{
+  let called = "";
+  const result = await testOratsKey("token-xyz", {
+    fetchImpl: async (url) => {
+      called = String(url);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ data: [{ ticker: "AAPL", min: "2007-01-03", max: "2026-08-25" }] }),
+      };
+    },
+  });
+  assert(called.includes("api.orats.io/datav2/tickers"), "ORATS test hits tickers endpoint");
+  assert(called.includes("ticker=AAPL"), "ORATS test uses a sample ticker");
+  assert(result.ok && result.ticker === "AAPL", "ORATS test accepts a valid payload");
+}
+try {
+  await testOratsKey("bad", {
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: [], message: "Invalid token" }),
+    }),
+  });
+  assert(false, "ORATS test should reject an invalid token");
+} catch (err) {
+  assert(String(err.message).includes("Invalid token"), "ORATS test surfaces token errors");
+}
 assert(html.includes("filter-toggle"), "index has collapsible filter bar");
 assert(html.includes("Market Cap"), "filter panel labels market cap");
 assert(html.includes("$100M+") && html.includes("$250M+") && html.includes("$500M+"), "market cap chips include mid-size floors");
@@ -440,6 +472,13 @@ try {
     body: JSON.stringify({ apiKey: "x", from: "2026-08-21", to: "2026-09-10" }),
   });
   assert(unknown.status === 404, "unknown provider");
+  const oratsMissing = await fetch("http://127.0.0.1:3456/api/options/orats", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  const oratsMissingJson = await oratsMissing.json();
+  assert(oratsMissing.status === 400 && oratsMissingJson.error, "ORATS test requires API key");
   const badCompany = await fetch("http://127.0.0.1:3456/api/company/-BAD");
   assert(badCompany.status === 400, "invalid company symbol");
   const nvda = await fetch("http://127.0.0.1:3456/api/company/NVDA");

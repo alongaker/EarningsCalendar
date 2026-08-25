@@ -839,6 +839,15 @@ input[type="search"]:focus {
   background: var(--ink-2);
 }
 
+.key-card--fixed {
+  grid-template-columns: minmax(0, 1fr);
+  padding-left: 12px;
+}
+
+.key-card--fixed .key-card__body {
+  grid-column: 1;
+}
+
 .key-card.is-dragging {
   opacity: 0.45;
 }

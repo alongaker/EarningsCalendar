@@ -1,4 +1,4 @@
-import { PROVIDERS, providersByName, providerById, fetchProvider, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
+import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, hydrateLastRevenue } from "./company.js";
 
 const TIME_LABEL = {
@@ -46,6 +46,7 @@ const els = {
   keyValue: document.querySelector("#key-value"),
   keyHint: document.querySelector("#key-hint"),
   keyList: document.querySelector("#key-list"),
+  optionsKeyList: document.querySelector("#options-key-list"),
   keyFormStatus: document.querySelector("#key-form-status"),
   navToggle: document.querySelector("#nav-toggle"),
   navKeysText: document.querySelector("#nav-keys-text"),
@@ -60,12 +61,12 @@ function loadKeys() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEYS_STORAGE) || "{}");
     const keys = {};
-    for (const provider of PROVIDERS) {
+    for (const provider of allKeyProviders()) {
       keys[provider.id] = String(raw[provider.id] || "").trim();
     }
     return keys;
   } catch {
-    return Object.fromEntries(PROVIDERS.map((p) => [p.id, ""]));
+    return Object.fromEntries(allKeyProviders().map((p) => [p.id, ""]));
   }
 }
 
@@ -227,6 +228,7 @@ function setView(tab, opts = {}) {
     link.setAttribute("aria-current", on ? "page" : "false");
   });
   const n = connectedCount();
+  const optionsOn = OPTIONS_PROVIDERS.some((p) => state.keys[p.id]);
   if (els.navKeysText) els.navKeysText.textContent = "Settings";
   if (els.pageTitle) {
     els.pageTitle.textContent = tab === "keys" ? "Settings" : "Earnings Calendar";
@@ -243,9 +245,10 @@ function setView(tab, opts = {}) {
     if (location.hash !== hash) history.pushState(null, "", hash);
   }
   if (tab === "keys") {
-    els.asOf.textContent = n
+    const extra = n
       ? `${n} extra provider${n === 1 ? "" : "s"} connected`
-      : "No extra providers yet";
+      : "No extra calendar providers yet";
+    els.asOf.textContent = optionsOn ? `${extra} · ORATS options key saved` : extra;
     els.source.textContent = "Keys stay in this browser";
     renderKeysPage();
   } else if (tab === "company" && state.companySymbol) {
@@ -653,11 +656,16 @@ function renderBoard(calls) {
 
 function statusLine(id) {
   const s = state.statuses[id];
+  const options = optionProviderById(id);
   if (!s) {
+    if (options) return state.keys[id] ? "Saved in this browser" : "Paste a token to connect";
     return state.keys[id] ? "Saved in this browser" : "Not connected";
   }
   if (s.state === "busy") return "Checking key…";
-  if (s.state === "ok") return `Connected · ${s.count} extra row${s.count === 1 ? "" : "s"}`;
+  if (s.state === "ok") {
+    if (options) return s.message || "Connected · ORATS key works";
+    return `Connected · ${s.count} extra row${s.count === 1 ? "" : "s"}`;
+  }
   return s.message || "Could not connect";
 }
 
@@ -725,8 +733,52 @@ function renderSourceSelect() {
   updateKeyHint();
 }
 
+function optionsKeyCard(provider) {
+  const id = provider.id;
+  const s = state.statuses[id];
+  const tone = s?.state === "err" ? "is-err" : s?.state === "ok" ? "is-ok" : "";
+  const saved = Boolean(state.keys[id]);
+  return `<article class="key-card key-card--fixed" data-options-provider="${id}">
+    <div class="key-card__body">
+      <div class="key-card__head">
+        <h2>${escapeHtml(provider.name)}</h2>
+        <p class="key-status ${tone}" title="${escapeHtml(statusLine(id))}">${escapeHtml(statusLine(id))}</p>
+      </div>
+      <p class="key-hint">${escapeHtml(provider.blurb)}</p>
+      <div class="key-card__row">
+        <p class="key-links">
+          ${saved ? `${escapeHtml(maskKey(state.keys[id]))} · ` : ""}
+          <a href="${provider.signup}" target="_blank" rel="noopener">Get a token</a>
+          ·
+          <a href="${provider.docs}" target="_blank" rel="noopener">API docs</a>
+        </p>
+        <input
+          type="password"
+          name="${id}"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="${escapeHtml(provider.name)} options API key"
+          placeholder="${escapeHtml(provider.placeholder)}"
+          value="${escapeHtml(state.keys[id])}"
+        />
+        <div class="key-actions">
+          <button type="button" data-options-save="${id}">${saved ? "Update" : "Save"}</button>
+          <button type="button" class="ghost" data-options-test="${id}">Test</button>
+          <button type="button" class="ghost" data-options-clear="${id}" ${saved ? "" : "disabled"}>Remove</button>
+        </div>
+      </div>
+    </div>
+  </article>`;
+}
+
+function renderOptionsKeys() {
+  if (!els.optionsKeyList) return;
+  els.optionsKeyList.innerHTML = OPTIONS_PROVIDERS.map(optionsKeyCard).join("");
+}
+
 function renderKeysPage() {
   renderSourceSelect();
+  renderOptionsKeys();
   const saved = connectedProviders();
   if (!saved.length) {
     els.keyList.innerHTML = `<p class="key-list-empty">No extra sources yet. Choose one above to add it.</p>`;
@@ -1214,6 +1266,73 @@ els.keyList.addEventListener("click", async (event) => {
   }
   renderKeysPage();
   await applyCalendar(state.base);
+  renderKeysPage();
+});
+
+async function pingOratsKey(apiKey) {
+  try {
+    const res = await fetch("/api/options/orats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apiKey }),
+    });
+    if (res.status === 404) return testOratsKey(apiKey);
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(payload.error || `ORATS ${res.status}`);
+    return payload;
+  } catch (err) {
+    if (!(err instanceof TypeError)) throw err;
+    try {
+      return await testOratsKey(apiKey);
+    } catch {
+      throw new Error("Could not reach ORATS. Run npm start locally to test this key.");
+    }
+  }
+}
+
+els.optionsKeyList?.addEventListener("click", async (event) => {
+  const saveId = event.target.dataset.optionsSave;
+  const testId = event.target.dataset.optionsTest;
+  const clearId = event.target.dataset.optionsClear;
+  const id = saveId || testId || clearId;
+  if (!id || !optionProviderById(id)) return;
+
+  if (clearId) {
+    state.keys[id] = "";
+    delete state.statuses[id];
+    saveKeys();
+    showFormStatus("ORATS options key removed from this browser.");
+    renderKeysPage();
+    return;
+  }
+
+  const input = els.optionsKeyList.querySelector(`input[name="${id}"]`);
+  const value = input?.value.trim() || "";
+  if (!value && !state.keys[id]) {
+    state.statuses[id] = { state: "err", message: "Paste a token first" };
+    renderKeysPage();
+    return;
+  }
+  if (value) state.keys[id] = value;
+  if (saveId) {
+    saveKeys();
+    showFormStatus("ORATS options key saved in this browser.");
+    state.statuses[id] = { state: "ok", message: "Saved in this browser" };
+    renderKeysPage();
+    return;
+  }
+
+  saveKeys();
+  state.statuses[id] = { state: "busy" };
+  renderKeysPage();
+  try {
+    await pingOratsKey(state.keys[id]);
+    state.statuses[id] = { state: "ok", message: "Connected · ORATS key works" };
+    showFormStatus("ORATS options key works.");
+  } catch (err) {
+    state.statuses[id] = { state: "err", message: err.message || "Could not connect" };
+    showFormStatus(err.message || "ORATS test failed.", true);
+  }
   renderKeysPage();
 });
 
