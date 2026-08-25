@@ -492,8 +492,16 @@ input[type="search"]:focus {
   white-space: nowrap;
 }
 
+.companies-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .companies-board .table {
   table-layout: fixed;
+  width: max-content;
+  min-width: 52rem;
 }
 
 .companies-board .table th,
@@ -505,8 +513,34 @@ input[type="search"]:focus {
 
 .companies-board .table th:nth-child(1),
 .companies-board .table td:nth-child(1) {
+  position: sticky;
+  left: 0;
+  z-index: 3;
   width: 4.25rem;
+  background: var(--ink);
   white-space: nowrap;
+}
+
+.companies-board .table th:nth-child(2),
+.companies-board .table td:nth-child(2) {
+  position: sticky;
+  left: 4.25rem;
+  z-index: 3;
+  width: 16rem;
+  min-width: 16rem;
+  max-width: 16rem;
+  background: var(--ink);
+  box-shadow: 8px 0 8px -8px rgba(0, 0, 0, 0.7);
+}
+
+.companies-board .table thead th:nth-child(1),
+.companies-board .table thead th:nth-child(2) {
+  z-index: 4;
+}
+
+.companies-board .table tr:hover td:nth-child(1),
+.companies-board .table tr:hover td:nth-child(2) {
+  background: var(--ink-3);
 }
 
 .companies-board .company-cell {

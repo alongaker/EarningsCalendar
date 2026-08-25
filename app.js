@@ -892,6 +892,7 @@ function renderCompanies(calls) {
       <h3>Upcoming</h3>
       <span>${rows.length} compan${rows.length === 1 ? "y" : "ies"}</span>
     </div>
+    <div class="companies-scroll">
     <table class="table">
       <thead>
         <tr>
@@ -905,6 +906,7 @@ function renderCompanies(calls) {
       </thead>
       <tbody>${body}</tbody>
     </table>
+    </div>
   </section>`;
 }
 
