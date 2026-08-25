@@ -57,7 +57,7 @@ export const OPTIONS_PROVIDERS = [
     id: "orats",
     name: "ORATS",
     blurb:
-      "Options-only key for the company page (implied move, IV rank, term structure, straddles, past earnings moves). Delayed data, 20,000 requests per month. Three calls per ticker, then cached in this browser. Not mixed into the Nasdaq calendar or Companies list.",
+      "Options-only key for the company page (implied move, straddles, past earnings moves). Delayed data, 20,000 requests per month. One call per ticker, then cached in this browser. Not mixed into the Nasdaq calendar or Companies list.",
     signup: "https://orats.com/data-api",
     docs: "https://orats.com/docs/delayed-data-api",
     placeholder: "ORATS API token",
@@ -752,7 +752,7 @@ export async function testOratsKey(apiKey, { fetchImpl = fetch } = {}) {
   return { ok: true, ticker: String(rows[0]?.ticker || "AAPL") };
 }
 
-export const ORATS_SNAPSHOT_CALLS = 3;
+export const ORATS_SNAPSHOT_CALLS = 1;
 export const ORATS_CACHE_HOURS = 12;
 
 const ORATS_TOD = {
@@ -860,7 +860,9 @@ export function normalizeOratsSnapshot(ticker, { summaries = null, cores = null,
   const s = summaries || {};
   const c = cores || {};
   const r = ivrank || {};
-  const tenors = [
+  const spot = oratsNum(c.pxAtmIv);
+  const straddle = oratsNum(c.straPxM1);
+  const fromSummaries = [
     ["10d", "iv10d", "exErnIv10d"],
     ["20d", "iv20d", "exErnIv20d"],
     ["30d", "iv30d", "exErnIv30d"],
@@ -872,15 +874,29 @@ export function normalizeOratsSnapshot(ticker, { summaries = null, cores = null,
     iv: oratsToPctPoints(s[ivKey]),
     exIv: oratsToPctPoints(s[exKey]),
   }));
+  const fromMonths = [
+    ["M1", c.dtExM1, c.atmIvM1],
+    ["M2", c.dtExM2 ?? c.dtExm2, c.atmIvM2],
+    ["M3", c.dtExM3, c.atmIvM3],
+    ["M4", c.dtExM4, c.atmIvM4],
+  ]
+    .filter(([, dte, iv]) => dte != null || iv != null)
+    .map(([label, dte, iv]) => ({
+      label: oratsNum(dte) != null ? `${label} ${oratsNum(dte)}d` : label,
+      iv: oratsToPctPoints(iv),
+      exIv: null,
+    }));
+  const tenors = fromSummaries.some((row) => row.iv != null || row.exIv != null) ? fromSummaries : fromMonths;
+  const straddlePct = spot && straddle != null ? (straddle / spot) * 100 : null;
   return {
     ticker: canonicalSymbol(ticker),
     asOf: pickUpdatedAt(s, c, r),
     callsUsed: ORATS_SNAPSHOT_CALLS,
-    impliedMove: oratsToPctPoints(s.impliedMove ?? s.impliedEarningsMove),
+    impliedMove: oratsToPctPoints(s.impliedMove ?? s.impliedEarningsMove) ?? straddlePct,
     impliedEarningsMove: oratsToPctPoints(s.impliedEarningsMove),
     ieeEarnEffect: oratsNum(s.ieeEarnEffect ?? c.impliedIee),
-    iv30d: oratsToPctPoints(s.iv30d ?? r.iv),
-    exErnIv30d: oratsToPctPoints(s.exErnIv30d),
+    iv30d: oratsToPctPoints(s.iv30d ?? r.iv ?? c.atmIvM1),
+    exErnIv30d: oratsToPctPoints(s.exErnIv30d ?? c.orIvXern20d),
     iv: oratsToPctPoints(r.iv),
     ivRank1m: oratsNum(r.ivRank1m),
     ivPct1m: oratsNum(r.ivPct1m),
@@ -892,11 +908,16 @@ export function normalizeOratsSnapshot(ticker, { summaries = null, cores = null,
     nextErn: oratsDateLabel(c.nextErn),
     wksNextErn: oratsNum(c.wksNextErn),
     ivEarnReturn: oratsNum(c.ivEarnReturn),
+    spot: spot,
+    callVolume: oratsNum(c.cVolu),
+    putVolume: oratsNum(c.pVolu),
+    callOi: oratsNum(c.cOi),
+    putOi: oratsNum(c.pOi),
     tenors,
     front: {
       dte: oratsNum(c.dtExM1),
       atmIv: oratsToPctPoints(c.atmIvM1),
-      straddle: oratsNum(c.straPxM1),
+      straddle: straddle,
       smoothStraddle: oratsNum(c.smoothStraPxM1),
       loStrike: oratsNum(c.loStrikeM1),
       hiStrike: oratsNum(c.hiStrikeM1),
@@ -918,15 +939,7 @@ export async function fetchOratsSnapshot(apiKey, ticker, { fetchImpl = fetch } =
   const symbol = canonicalSymbol(ticker);
   if (!key) throw new Error("API key required");
   if (!symbol) throw new Error("Ticker required");
-  const settled = await Promise.allSettled([
-    fetchOratsEndpoint("summaries", key, symbol, fetchImpl),
-    fetchOratsEndpoint("cores", key, symbol, fetchImpl),
-    fetchOratsEndpoint("ivrank", key, symbol, fetchImpl),
-  ]);
-  const [summaries, cores, ivrank] = settled.map((item) => (item.status === "fulfilled" ? item.value : null));
-  if (!summaries && !cores && !ivrank) {
-    const first = settled.find((item) => item.status === "rejected");
-    throw new Error(first?.reason?.message || "ORATS returned no options data");
-  }
-  return normalizeOratsSnapshot(symbol, { summaries, cores, ivrank });
+  const cores = await fetchOratsEndpoint("cores", key, symbol, fetchImpl);
+  if (!cores) throw new Error("ORATS returned no options data");
+  return normalizeOratsSnapshot(symbol, { cores });
 }

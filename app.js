@@ -452,7 +452,7 @@ function renderOptionsBlock(symbol, profile) {
   if (!state.keys.orats) {
     return `<section class="history options-block">
       <h3>Options</h3>
-      <p class="empty">Add an ORATS key in Settings to load implied move, IV rank, straddles, and past earnings moves for this ticker. That uses ${ORATS_SNAPSHOT_CALLS} of 20,000 monthly calls, then caches for ${ORATS_CACHE_HOURS} hours. The Companies list never fetches options.</p>
+      <p class="empty">Add an ORATS key in Settings to load implied move, straddles, and past earnings moves for this ticker. That uses ${ORATS_SNAPSHOT_CALLS} of 20,000 monthly calls, then caches for ${ORATS_CACHE_HOURS} hours. The Companies list never fetches options.</p>
     </section>`;
   }
   const pack = state.optionsBySymbol[symbol];
@@ -491,7 +491,10 @@ function renderOptionsBlock(symbol, profile) {
         <div><dt>Weeks to call</dt><dd>${optionCell(snap.wksNextErn == null ? "" : Number(snap.wksNextErn).toFixed(1))}</dd></div>
         <div><dt>Last print</dt><dd>${optionCell([snap.lastErn, snap.lastErnTod].filter(Boolean).join(" · "))}</dd></div>
         <div><dt>ORATS next earn</dt><dd>${optionCell(snap.nextErn)}</dd></div>
-        <div><dt>Front straddle</dt><dd>${optionCell(formatUsdMoney(snap.front?.straddle))}</dd></div>
+        <div><dt>Call volume</dt><dd>${optionCell(snap.callVolume == null ? "" : String(snap.callVolume))}</dd></div>
+        <div><dt>Put volume</dt><dd>${optionCell(snap.putVolume == null ? "" : String(snap.putVolume))}</dd></div>
+        <div><dt>Call OI</dt><dd>${optionCell(snap.callOi == null ? "" : String(snap.callOi))}</dd></div>
+        <div><dt>Put OI</dt><dd>${optionCell(snap.putOi == null ? "" : String(snap.putOi))}</dd></div>
       </dl>
     </section>
     ${tenorRows(snap)}

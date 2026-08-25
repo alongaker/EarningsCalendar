@@ -443,43 +443,37 @@ try {
   const snap = await fetchOratsSnapshot("tok", "NVDA", {
     fetchImpl: async (url) => {
       urls.push(String(url));
-      const path = String(url);
-      const row = path.includes("ivrank")
-        ? { ticker: "NVDA", iv: 0.4, ivRank1y: 0.8, ivPct1y: 0.72, ivRank1m: 0.5, ivPct1m: 0.55 }
-        : path.includes("cores")
-          ? {
-              ticker: "NVDA",
-              absAvgErnMv: 5.2,
-              dtExM1: 5,
-              atmIvM1: 55,
-              straPxM1: 12.5,
-              lastErn: "2026-05-28",
-              lastErnTod: 3,
-              ernDate1: "2026-05-28",
-              ernMv1: 6.1,
-              ernStraPct1: 5.8,
-            }
-          : {
-              ticker: "NVDA",
-              impliedMove: 0.074,
-              impliedEarningsMove: 0.074,
-              ieeEarnEffect: 1.9,
-              iv30d: 0.42,
-              exErnIv30d: 0.31,
-              iv10d: 0.5,
-              exErnIv10d: 0.3,
-            };
-      return { ok: true, status: 200, text: async () => JSON.stringify({ data: [row] }) };
+      return {
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            data: [
+              {
+                ticker: "NVDA",
+                pxAtmIv: 100,
+                absAvgErnMv: 5.2,
+                dtExM1: 5,
+                atmIvM1: 55,
+                straPxM1: 7.4,
+                orIvXern20d: 0.31,
+                lastErn: "2026-05-28",
+                lastErnTod: 3,
+                ernDate1: "2026-05-28",
+                ernMv1: 6.1,
+                ernStraPct1: 5.8,
+              },
+            ],
+          }),
+      };
     },
   });
-  assert(urls.length === 3, "ORATS snapshot uses three endpoints");
-  assert(urls.some((u) => u.includes("/summaries")), "snapshot hits summaries");
-  assert(urls.some((u) => u.includes("/cores")), "snapshot hits cores");
-  assert(urls.some((u) => u.includes("/ivrank")), "snapshot hits ivrank");
-  assert(snap.impliedMove > 7 && snap.impliedMove < 8, "implied move as percent points");
+  assert(urls.length === 1, "ORATS snapshot uses one endpoint");
+  assert(urls[0].includes("/cores"), "snapshot hits cores only");
+  assert(!urls.some((u) => u.includes("/summaries") || u.includes("/ivrank")), "does not hit summaries or ivrank");
+  assert(snap.impliedMove > 7 && snap.impliedMove < 8, "implied move from straddle over spot");
   assert(formatPctPoints(snap.impliedMove) === "7.4%", "format implied move");
-  assert(snap.ivRank1y === 0.8, "keeps IV rank");
-  assert(snap.front.straddle === 12.5, "front straddle from cores");
+  assert(snap.front.straddle === 7.4, "front straddle from cores");
   assert(snap.history.length === 1 && snap.history[0].move > 6, "past earnings move from cores");
 }
 assert(html.includes("filter-toggle"), "index has collapsible filter bar");
