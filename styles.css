@@ -492,6 +492,10 @@ input[type="search"]:focus {
   white-space: nowrap;
 }
 
+.companies-board {
+  --companies-ticker: 5rem;
+}
+
 .companies-scroll {
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -502,6 +506,8 @@ input[type="search"]:focus {
   table-layout: fixed;
   width: max-content;
   min-width: 52rem;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .companies-board .table th,
@@ -516,7 +522,11 @@ input[type="search"]:focus {
   position: sticky;
   left: 0;
   z-index: 3;
-  width: 4.25rem;
+  width: var(--companies-ticker);
+  min-width: var(--companies-ticker);
+  max-width: var(--companies-ticker);
+  box-sizing: border-box;
+  overflow: hidden;
   background: var(--ink);
   white-space: nowrap;
 }
@@ -524,11 +534,12 @@ input[type="search"]:focus {
 .companies-board .table th:nth-child(2),
 .companies-board .table td:nth-child(2) {
   position: sticky;
-  left: 4.25rem;
+  left: var(--companies-ticker);
   z-index: 3;
   width: 16rem;
   min-width: 16rem;
   max-width: 16rem;
+  box-sizing: border-box;
   background: var(--ink);
   box-shadow: 8px 0 8px -8px rgba(0, 0, 0, 0.7);
 }
