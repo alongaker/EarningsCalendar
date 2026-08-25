@@ -445,7 +445,7 @@ assert(html.includes("view-company"), "index has company view");
 assert(html.includes("view-companies"), "index has companies table view");
 assert(html.includes('data-nav="companies"'), "index has Companies menu link");
 const appJs = await readFile(join(root, "app.js"), "utf8");
-assert(appJs.includes(">Until<") || appJs.includes("th class=\"num\">Until"), "companies table has until column");
+assert(appJs.includes("Days until"), "companies table has days-until column");
 assert(appJs.includes("Market cap"), "companies table has market cap column");
 assert(appJs.includes(">Price<") || appJs.includes("th class=\"num\">Price"), "companies table has price column");
 assert(appJs.includes("formatMdY"), "companies table formats announce dates");
