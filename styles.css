@@ -497,8 +497,10 @@ input[type="search"]:focus {
 }
 
 .companies-board .table th,
-.companies-board .table td {
-  text-align: right;
+.companies-board .table td,
+.companies-board .table th.num,
+.companies-board .table td.num {
+  text-align: left;
 }
 
 .companies-board .table th:nth-child(1),
@@ -516,6 +518,7 @@ input[type="search"]:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
 }
 
 .companies-board .table th:nth-child(3),
