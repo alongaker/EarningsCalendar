@@ -877,14 +877,16 @@ function renderCompanies(calls) {
     .map((call) => {
       const days = daysUntilIso(call.date, today);
       const daysLabel = days == null ? "—" : String(days);
-      return `<tr class="call-row" data-symbol="${escapeHtml(call.symbol)}" data-date="${escapeHtml(call.date)}" tabindex="0" role="link" aria-label="${escapeHtml(call.symbol)} company details">
-        <td class="symbol">${escapeHtml(call.symbol)}</td>
-        <td class="company-cell"><span class="company-clip" title="${escapeHtml(displayName(call.name) || "—")}">${escapeHtml(displayName(call.name) || "—")}</span></td>
-        <td class="num">${escapeHtml(formatMdY(call.date) || "—")}</td>
-        <td class="num">${escapeHtml(daysLabel)}</td>
-        <td class="num">${dash(call.price)}</td>
-        <td class="num">${escapeHtml(call.marketCapDisplay || "—")}</td>
-      </tr>`;
+      return `<div class="call-row" data-symbol="${escapeHtml(call.symbol)}" data-date="${escapeHtml(call.date)}" tabindex="0" role="link" aria-label="${escapeHtml(call.symbol)} company details">
+        <div class="companies-pin">
+          <span class="symbol">${escapeHtml(call.symbol)}</span>
+          <span class="company-clip" title="${escapeHtml(displayName(call.name) || "—")}">${escapeHtml(displayName(call.name) || "—")}</span>
+        </div>
+        <div class="num">${escapeHtml(formatMdY(call.date) || "—")}</div>
+        <div class="num">${escapeHtml(daysLabel)}</div>
+        <div class="num">${dash(call.price)}</div>
+        <div class="num">${escapeHtml(call.marketCapDisplay || "—")}</div>
+      </div>`;
     })
     .join("");
   els.companiesBoard.innerHTML = `<section class="day-block">
@@ -893,19 +895,19 @@ function renderCompanies(calls) {
       <span>${rows.length} compan${rows.length === 1 ? "y" : "ies"}</span>
     </div>
     <div class="companies-scroll">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>Ticker</th>
-          <th>Company</th>
-          <th class="num">Date</th>
-          <th class="num">Until Call</th>
-          <th class="num">Price</th>
-          <th class="num">Market cap</th>
-        </tr>
-      </thead>
-      <tbody>${body}</tbody>
-    </table>
+    <div class="companies-grid">
+      <div class="companies-grid__head">
+        <div class="companies-pin">
+          <span>Ticker</span>
+          <span>Company</span>
+        </div>
+        <div class="num">Date</div>
+        <div class="num">Until Call</div>
+        <div class="num">Price</div>
+        <div class="num">Market cap</div>
+      </div>
+      ${body}
+    </div>
     </div>
   </section>`;
 }

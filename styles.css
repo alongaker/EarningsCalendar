@@ -492,70 +492,96 @@ input[type="search"]:focus {
   white-space: nowrap;
 }
 
-.companies-board {
-  --companies-ticker: 5rem;
-}
-
 .companies-scroll {
   overflow-x: auto;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
 }
 
-.companies-board .table {
-  table-layout: fixed;
+.companies-grid {
+  --companies-pin: 21rem;
+  --companies-date: 7.2rem;
+  --companies-until: 5.6rem;
+  --companies-price: 7.2rem;
+  --companies-cap: 7.2rem;
+  display: flex;
+  flex-direction: column;
   width: max-content;
   min-width: 52rem;
-  border-collapse: separate;
-  border-spacing: 0;
 }
 
-.companies-board .table th,
-.companies-board .table td,
-.companies-board .table th.num,
-.companies-board .table td.num {
+.companies-grid__head,
+.companies-grid .call-row {
+  display: grid;
+  grid-template-columns:
+    var(--companies-pin)
+    var(--companies-date)
+    var(--companies-until)
+    var(--companies-price)
+    var(--companies-cap);
+}
+
+.companies-grid__head > *,
+.companies-grid .call-row > * {
+  min-width: 0;
   text-align: left;
 }
 
-.companies-board .table th:nth-child(1),
-.companies-board .table td:nth-child(1) {
-  position: sticky;
-  left: 0;
-  z-index: 3;
-  width: var(--companies-ticker);
-  min-width: var(--companies-ticker);
-  max-width: var(--companies-ticker);
-  box-sizing: border-box;
-  overflow: hidden;
-  background: var(--ink);
+.companies-grid__head > * {
+  padding: 6px 10px;
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.companies-grid .call-row > * {
+  padding: 11px 10px;
+  border-top: 1px solid var(--rule);
   white-space: nowrap;
 }
 
-.companies-board .table th:nth-child(2),
-.companies-board .table td:nth-child(2) {
+.companies-grid .num {
+  font-variant-numeric: tabular-nums;
+}
+
+.companies-grid .call-row:hover > * {
+  background: var(--ink-3);
+}
+
+.companies-grid .call-row:focus-visible {
+  outline: 1px solid var(--gold);
+}
+
+.companies-pin {
   position: sticky;
-  left: var(--companies-ticker);
-  z-index: 3;
-  width: 16rem;
-  min-width: 16rem;
-  max-width: 16rem;
-  box-sizing: border-box;
+  left: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
+  padding: 0;
   background: var(--ink);
   box-shadow: 8px 0 8px -8px rgba(0, 0, 0, 0.7);
 }
 
-.companies-board .table thead th:nth-child(1),
-.companies-board .table thead th:nth-child(2) {
-  z-index: 4;
+.companies-grid__head .companies-pin {
+  z-index: 3;
 }
 
-.companies-board .table tr:hover td:nth-child(1),
-.companies-board .table tr:hover td:nth-child(2) {
+.companies-pin > * {
+  min-width: 0;
+  padding: 11px 10px;
+}
+
+.companies-grid__head .companies-pin > * {
+  padding: 6px 10px;
+}
+
+.companies-grid .call-row:hover .companies-pin {
   background: var(--ink-3);
-}
-
-.companies-board .company-cell {
-  overflow: hidden;
 }
 
 .companies-board .company-clip {
@@ -564,22 +590,6 @@ input[type="search"]:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
-}
-
-.companies-board .table th:nth-child(3),
-.companies-board .table td:nth-child(3),
-.companies-board .table th:nth-child(5),
-.companies-board .table td:nth-child(5),
-.companies-board .table th:nth-child(6),
-.companies-board .table td:nth-child(6) {
-  width: 7.2rem;
-  white-space: nowrap;
-}
-
-.companies-board .table th:nth-child(4),
-.companies-board .table td:nth-child(4) {
-  width: 5.6rem;
-  white-space: nowrap;
 }
 
 .table th {

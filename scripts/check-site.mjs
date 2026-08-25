@@ -446,6 +446,7 @@ assert(html.includes("view-companies"), "index has companies table view");
 assert(html.includes('data-nav="companies"'), "index has Companies menu link");
 const appJs = await readFile(join(root, "app.js"), "utf8");
 assert(appJs.includes("companies-scroll"), "companies table can scroll horizontally");
+assert(appJs.includes("companies-pin"), "ticker and company freeze as one sticky column");
 assert(appJs.includes("Market cap"), "companies table has market cap column");
 assert(appJs.includes(">Price<") || appJs.includes("th class=\"num\">Price"), "companies table has price column");
 assert(appJs.includes("formatMdY"), "companies table formats announce dates");
