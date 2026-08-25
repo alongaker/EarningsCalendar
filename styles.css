@@ -523,13 +523,17 @@ input[type="search"]:focus {
 
 .companies-board .table th:nth-child(3),
 .companies-board .table td:nth-child(3),
-.companies-board .table th:nth-child(4),
-.companies-board .table td:nth-child(4),
 .companies-board .table th:nth-child(5),
 .companies-board .table td:nth-child(5),
 .companies-board .table th:nth-child(6),
 .companies-board .table td:nth-child(6) {
   width: 7.2rem;
+  white-space: nowrap;
+}
+
+.companies-board .table th:nth-child(4),
+.companies-board .table td:nth-child(4) {
+  width: 5.6rem;
   white-space: nowrap;
 }
 
