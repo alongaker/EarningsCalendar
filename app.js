@@ -879,7 +879,7 @@ function renderCompanies(calls) {
       const daysLabel = days == null ? "—" : String(days);
       return `<tr class="call-row" data-symbol="${escapeHtml(call.symbol)}" data-date="${escapeHtml(call.date)}" tabindex="0" role="link" aria-label="${escapeHtml(call.symbol)} company details">
         <td class="symbol">${escapeHtml(call.symbol)}</td>
-        <td>${escapeHtml(displayName(call.name) || "—")}</td>
+        <td class="company-cell"><span class="company-clip" title="${escapeHtml(displayName(call.name) || "—")}">${escapeHtml(displayName(call.name) || "—")}</span></td>
         <td class="num">${escapeHtml(formatMdY(call.date) || "—")}</td>
         <td class="num">${escapeHtml(daysLabel)}</td>
         <td class="num">${dash(call.price)}</td>
