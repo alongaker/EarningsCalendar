@@ -1,0 +1,13 @@
+---
+description: Stay on main unless a second branch is truly needed
+alwaysApply: true
+---
+
+# Git workflow
+
+This is a solo repo. Work on `main` only.
+
+- Commit and push directly to `main`.
+- Do not create `cursor/*` (or other) feature branches, and do not open a PR, unless two independent changes must land at the same time or the user asks for a branch.
+- If a previous agent left extra branches whose commits are already on `main`, delete those remote branches rather than stacking more of them.
+- The GitHub default branch is `main`. Pages deploys from `main`.
