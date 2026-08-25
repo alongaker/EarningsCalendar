@@ -496,8 +496,9 @@ function renderCompany(symbol, profile) {
       </section>`
       : "";
 
+  const backLabel = state.returnTab === "companies" ? "← Back to companies" : "← Back to calendar";
   els.viewCompany.innerHTML = `
-    <button class="back-link" type="button" data-back>← Back to calendar</button>
+    <button class="back-link" type="button" data-back>${backLabel}</button>
     <div class="company-hero">
       <div>
         <h2>${escapeHtml(symbol)}</h2>
