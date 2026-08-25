@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, formatMdY, daysUntilIso } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -44,6 +44,9 @@ assert(mapTime("08:00") === "before-open", "map morning clock");
 assert(marketDateIso(new Date("2026-08-24T16:00:00Z")) === "2026-08-24", "afternoon ET is still Aug 24");
 assert(marketDateIso(new Date("2026-08-25T03:30:00Z")) === "2026-08-24", "late evening ET stays prior date");
 assert(marketDateIso(new Date("2026-08-25T04:30:00Z")) === "2026-08-25", "after midnight ET rolls forward");
+assert(formatMdY("2026-08-25") === "08/25/26", "announce date MM/DD/YY");
+assert(daysUntilIso("2026-08-25", "2026-08-25") === 0, "same-day announce is 0 days until");
+assert(daysUntilIso("2026-08-27", "2026-08-25") === 2, "days until later announce date");
 const windowed = windowUpcoming(
   {
     startDate: "2026-08-21",
@@ -418,6 +421,11 @@ assert(html.includes("Market Cap"), "filter panel labels market cap");
 assert(html.includes("$100M+") && html.includes("$250M+") && html.includes("$500M+"), "market cap chips include mid-size floors");
 assert(html.includes("Drag to rank extras"), "index explains extra-source ranking");
 assert(html.includes("view-company"), "index has company view");
+assert(html.includes("view-companies"), "index has companies table view");
+assert(html.includes('data-nav="companies"'), "index has Companies menu link");
+const appJs = await readFile(join(root, "app.js"), "utf8");
+assert(appJs.includes("Days until"), "companies table has days-until column");
+assert(appJs.includes("formatMdY"), "companies table formats announce dates");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");
 

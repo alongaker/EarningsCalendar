@@ -136,6 +136,22 @@ export function startOfMarketDay(d = new Date(), timeZone = MARKET_TZ) {
   return new Date(`${marketDateIso(d, timeZone)}T00:00:00.000Z`);
 }
 
+export function formatMdY(iso) {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  return `${m[2]}/${m[3]}/${m[1].slice(2)}`;
+}
+
+export function daysUntilIso(iso, today = marketDateIso()) {
+  const target = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const now = String(today || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!target || !now) return null;
+  const ms =
+    Date.UTC(Number(target[1]), Number(target[2]) - 1, Number(target[3])) -
+    Date.UTC(Number(now[1]), Number(now[2]) - 1, Number(now[3]));
+  return Math.round(ms / 86400000);
+}
+
 const NON_OPERATING_NAME =
   /\b(?:etfs?|etns?|exchange[\s-]*traded|closed[\s-]*end|mutual\s+funds?|blank\s+check|spacs?)\b|\bacquisition\s+(?:corp(?:oration)?|co\.?|company)\b|\btrusts?\b|\bfunds?\b|\bcredit\s+(?:opportunit\w*|companies|company|funds?|trusts?|income)\b|\bbusiness\s+development\s+compan(?:y|ies)\b/i;
 

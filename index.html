@@ -39,6 +39,10 @@
           <span class="sidenav__mark" aria-hidden="true">C</span>
           <span class="sidenav__text">Calendar</span>
         </a>
+        <a class="sidenav__link" id="nav-companies" href="#companies" data-nav="companies" title="Companies">
+          <span class="sidenav__mark" aria-hidden="true">N</span>
+          <span class="sidenav__text">Companies</span>
+        </a>
         <a class="sidenav__link" id="nav-keys" href="#keys" data-nav="keys" title="Settings">
           <span class="sidenav__mark" aria-hidden="true">K</span>
           <span class="sidenav__text" id="nav-keys-text">Settings</span>
@@ -56,8 +60,7 @@
       </div>
     </header>
 
-    <div id="view-calendar">
-      <section class="toolbar" aria-label="Filters">
+    <section id="shared-toolbar" class="toolbar" aria-label="Filters">
         <button
           type="button"
           class="filter-toggle"
@@ -103,9 +106,16 @@
         </div>
       </section>
 
+    <div id="view-calendar">
       <nav id="week" class="week" aria-label="Days with earnings"></nav>
 
       <main id="board" class="board">
+        <p class="status">Fetching the next few weeks of calls…</p>
+      </main>
+    </div>
+
+    <div id="view-companies" hidden>
+      <main id="companies-board" class="board companies-board">
         <p class="status">Fetching the next few weeks of calls…</p>
       </main>
     </div>

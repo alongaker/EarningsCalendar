@@ -1,4 +1,4 @@
-import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap } from "./providers.js";
+import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap, formatMdY, daysUntilIso } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, hydrateLastRevenue } from "./company.js";
 
 const TIME_LABEL = {
@@ -20,6 +20,7 @@ const state = {
   minCap: 50_000_000,
   day: "all",
   tab: "calendar",
+  returnTab: "calendar",
   keys: loadKeys(),
   keyOrder: loadKeyOrder(),
   extraCalls: {},
@@ -41,6 +42,9 @@ const els = {
   viewCalendar: document.querySelector("#view-calendar"),
   viewKeys: document.querySelector("#view-keys"),
   viewCompany: document.querySelector("#view-company"),
+  viewCompanies: document.querySelector("#view-companies"),
+  companiesBoard: document.querySelector("#companies-board"),
+  toolbar: document.querySelector("#shared-toolbar"),
   keyForm: document.querySelector("#key-form"),
   keySource: document.querySelector("#key-source"),
   keyValue: document.querySelector("#key-value"),
@@ -137,12 +141,12 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function matches(call) {
+function matches(call, { ignoreDay = false } = {}) {
   const q = state.query.trim().toLowerCase();
   if (q && !`${call.symbol} ${call.name}`.toLowerCase().includes(q)) return false;
   if (state.time !== "all" && call.time !== state.time) return false;
   if (call.marketCap < state.minCap) return false;
-  if (state.day !== "all" && call.date !== state.day) return false;
+  if (!ignoreDay && state.day !== "all" && call.date !== state.day) return false;
   return true;
 }
 
@@ -219,11 +223,15 @@ function setView(tab, opts = {}) {
   state.tab = tab;
   state.companySymbol = opts.symbol || "";
   state.companyDate = opts.date || "";
+  if (tab === "calendar" || tab === "companies") state.returnTab = tab;
   els.viewCalendar.hidden = tab !== "calendar";
   els.viewKeys.hidden = tab !== "keys";
   els.viewCompany.hidden = tab !== "company";
+  if (els.viewCompanies) els.viewCompanies.hidden = tab !== "companies";
+  if (els.toolbar) els.toolbar.hidden = tab !== "calendar" && tab !== "companies";
+  const navTab = tab === "company" ? state.returnTab || "calendar" : tab;
   document.querySelectorAll(".sidenav__link").forEach((link) => {
-    const on = link.dataset.nav === (tab === "company" ? "calendar" : tab);
+    const on = link.dataset.nav === navTab;
     link.classList.toggle("is-on", on);
     link.setAttribute("aria-current", on ? "page" : "false");
   });
@@ -231,12 +239,15 @@ function setView(tab, opts = {}) {
   const optionsOn = OPTIONS_PROVIDERS.some((p) => state.keys[p.id]);
   if (els.navKeysText) els.navKeysText.textContent = "Settings";
   if (els.pageTitle) {
-    els.pageTitle.textContent = tab === "keys" ? "Settings" : "Earnings Calendar";
+    els.pageTitle.textContent =
+      tab === "keys" ? "Settings" : tab === "companies" ? "Companies" : "Earnings Calendar";
   }
   if (tab === "keys") document.title = "Settings — Earnings Calendar";
+  else if (tab === "companies") document.title = "Companies — Earnings Calendar";
   if (opts.updateHash !== false) {
     let hash = "#calendar";
     if (tab === "keys") hash = "#keys";
+    if (tab === "companies") hash = "#companies";
     if (tab === "company" && state.companySymbol) {
       hash = state.companyDate
         ? `#company/${state.companySymbol}/${state.companyDate}`
@@ -571,6 +582,10 @@ function applyHash() {
     setView("keys", { updateHash: false });
     return;
   }
+  if (hash === "companies") {
+    setView("companies", { updateHash: false });
+    return;
+  }
   const company = hash.match(/^company\/([A-Za-z0-9.\-]+)(?:\/(\d{4}-\d{2}-\d{2}))?$/);
   if (company) {
     setView("company", {
@@ -841,12 +856,54 @@ function currentWindow(snap) {
   return windowUpcoming(snap, marketDateIso());
 }
 
+function renderCompanies(calls) {
+  if (!els.companiesBoard) return;
+  if (!calls.length) {
+    els.companiesBoard.innerHTML = `<p class="empty">No calls match those filters.</p>`;
+    return;
+  }
+  const today = marketDateIso();
+  const rows = [...calls].sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return a.symbol.localeCompare(b.symbol);
+  });
+  const body = rows
+    .map((call) => {
+      const days = daysUntilIso(call.date, today);
+      const daysLabel = days == null ? "—" : String(days);
+      return `<tr class="call-row" data-symbol="${escapeHtml(call.symbol)}" data-date="${escapeHtml(call.date)}" tabindex="0" role="link" aria-label="${escapeHtml(call.symbol)} company details">
+        <td class="symbol">${escapeHtml(call.symbol)}</td>
+        <td>${escapeHtml(displayName(call.name) || "—")}</td>
+        <td class="num">${escapeHtml(formatMdY(call.date) || "—")}</td>
+        <td class="num">${escapeHtml(daysLabel)}</td>
+      </tr>`;
+    })
+    .join("");
+  els.companiesBoard.innerHTML = `<section class="day-block">
+    <div class="day-head">
+      <h3>Upcoming</h3>
+      <span>${rows.length} compan${rows.length === 1 ? "y" : "ies"}</span>
+    </div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Company</th>
+          <th class="num">Date</th>
+          <th class="num">Days until</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>
+    </table>
+  </section>`;
+}
+
 function render() {
   pruneDayFilter();
-  if (!state.snapshot || state.tab !== "calendar") return;
+  if (!state.snapshot) return;
+  if (state.tab !== "calendar" && state.tab !== "companies") return;
   const snap = currentWindow(state.snapshot);
-  document.title = "Earnings Calendar";
-  const filtered = snap.calls.filter(matches);
+  const listRows = snap.calls.filter((call) => matches(call, { ignoreDay: true }));
   const generated = new Date(snap.generatedAt);
   const when = Number.isFinite(generated.getTime())
     ? new Intl.DateTimeFormat("en-US", {
@@ -857,19 +914,27 @@ function render() {
         timeZoneName: "short",
       }).format(generated)
     : "just now";
+  if (state.tab === "companies") {
+    document.title = "Companies — Earnings Calendar";
+    els.asOf.textContent = `${listRows.length} companies · ${snap.startDate} to ${snap.endDate} · updated ${when}`;
+    els.source.textContent = snap.warning
+      ? snap.warning
+      : snap.mode === "live"
+        ? "Live calendar"
+        : "Saved snapshot";
+    renderCompanies(listRows);
+    syncFilterBar();
+    return;
+  }
+  document.title = "Earnings Calendar";
+  const filtered = snap.calls.filter(matches);
   els.asOf.textContent = `${snap.count} calls · ${snap.startDate} to ${snap.endDate} · updated ${when}`;
   els.source.textContent = snap.warning
     ? snap.warning
     : snap.mode === "live"
       ? "Live calendar"
       : "Saved snapshot";
-  const weekCalls = snap.calls.filter((call) => {
-    const q = state.query.trim().toLowerCase();
-    if (q && !`${call.symbol} ${call.name}`.toLowerCase().includes(q)) return false;
-    if (state.time !== "all" && call.time !== state.time) return false;
-    if (call.marketCap < state.minCap) return false;
-    return true;
-  });
+  const weekCalls = listRows;
   renderWeek(snap.calls, weekCalls);
   renderBoard(filtered);
   syncFilterBar();
@@ -986,24 +1051,24 @@ async function applyCalendar(base, { refreshKeys = true } = {}) {
   };
   named.count = named.calls.length;
   state.snapshot = named;
-  if (state.tab === "calendar") render();
+  if (state.tab === "calendar" || state.tab === "companies") render();
   else if (state.tab === "company" && state.companySymbol) {
     showCompany(state.companySymbol, state.companyDate);
   }
   const filled = await enrichSparseCalls(named.calls, {
     onProgress: (calls) => {
       state.snapshot = { ...named, calls, count: calls.length };
-      if (state.tab === "calendar") render();
+      if (state.tab === "calendar" || state.tab === "companies") render();
     },
   });
   const withRev = await enrichLastRevenue(filled, {
     onProgress: (calls) => {
       state.snapshot = { ...named, calls, count: calls.length };
-      if (state.tab === "calendar") render();
+      if (state.tab === "calendar" || state.tab === "companies") render();
     },
   });
   state.snapshot = { ...named, calls: withRev, count: withRev.length };
-  if (state.tab === "calendar") render();
+  if (state.tab === "calendar" || state.tab === "companies") render();
   else if (state.tab === "company" && state.companySymbol) {
     showCompany(state.companySymbol, state.companyDate);
   }
@@ -1076,6 +1141,20 @@ document.querySelectorAll("[data-cap]").forEach((btn) => {
 });
 
 
+els.companiesBoard?.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-symbol]");
+  if (!row) return;
+  setView("company", { symbol: row.dataset.symbol, date: row.dataset.date });
+});
+
+els.companiesBoard?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const row = event.target.closest("[data-symbol]");
+  if (!row) return;
+  event.preventDefault();
+  setView("company", { symbol: row.dataset.symbol, date: row.dataset.date });
+});
+
 els.board.addEventListener("click", (event) => {
   const sortBtn = event.target.closest("[data-sort]");
   if (sortBtn) {
@@ -1103,7 +1182,7 @@ els.board.addEventListener("keydown", (event) => {
 });
 
 els.viewCompany.addEventListener("click", (event) => {
-  if (event.target.closest("[data-back]")) setView("calendar");
+  if (event.target.closest("[data-back]")) setView(state.returnTab || "calendar");
 });
 
 els.week.addEventListener("click", (event) => {
@@ -1337,12 +1416,12 @@ els.optionsKeyList?.addEventListener("click", async (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "/" && state.tab === "calendar" && document.activeElement !== els.q) {
+  if (event.key === "/" && (state.tab === "calendar" || state.tab === "companies") && document.activeElement !== els.q) {
     event.preventDefault();
     setFiltersOpen(true, { focusSearch: true });
     return;
   }
-  if (event.key === "Escape" && state.tab === "calendar" && state.filtersOpen) {
+  if (event.key === "Escape" && (state.tab === "calendar" || state.tab === "companies") && state.filtersOpen) {
     event.preventDefault();
     setFiltersOpen(false);
     els.filterToggle?.focus();
