@@ -403,8 +403,8 @@ input[type="search"]:focus {
 }
 
 .day-pill {
-  flex: 1 1 9.5rem;
-  min-width: 9.5rem;
+  flex: 1 1 7.6rem;
+  min-width: 7.6rem;
   padding: 10px 12px;
   border: 1px solid var(--rule);
   background: var(--ink-2);
