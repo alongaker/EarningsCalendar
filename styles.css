@@ -205,6 +205,11 @@ html.nav-collapsed .sidenav__nav {
   margin-inline: auto;
 }
 
+.board.companies-board {
+  width: calc(100% - 32px);
+  max-width: none;
+}
+
 .masthead {
   display: flex;
   justify-content: space-between;
@@ -523,11 +528,13 @@ input[type="search"]:focus {
 }
 
 .companies-grid--options {
-  min-width: 78rem;
+  min-width: 74rem;
 }
 
 .companies-grid__head,
 .companies-grid .call-row {
+  min-width: 0;
+  width: 100%;
   display: grid;
   grid-template-columns:
     minmax(var(--companies-pin), 1fr)
