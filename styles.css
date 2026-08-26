@@ -578,6 +578,7 @@ input[type="search"]:focus {
   text-align: center;
   border-bottom: 1px solid var(--rule-strong);
   color: var(--cream-dim);
+  white-space: nowrap;
 }
 
 .companies-grid__groups .g-when {
@@ -639,13 +640,38 @@ input[type="search"]:focus {
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.companies-grid__head:not(.companies-grid__groups) > *:not(.companies-pin) {
+  display: flex;
+  align-items: flex-end;
+  min-height: 2.7em;
+  white-space: normal;
+}
+
+.companies-grid__head:not(.companies-grid__groups) .companies-pin {
+  align-items: stretch;
+  padding: 0;
+}
+
+.companies-grid__head:not(.companies-grid__groups) .companies-pin > * {
+  display: flex;
+  align-items: flex-end;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .companies-grid .call-row > * {
   padding: 11px 10px;
   border-top: 1px solid var(--rule);
   white-space: nowrap;
+  line-height: 1.25;
+}
+
+.companies-grid .call-row > .companies-pin {
+  padding: 0;
+  align-items: start;
 }
 
 .companies-grid .call-row > .flow-cell,
@@ -654,16 +680,11 @@ input[type="search"]:focus {
 }
 
 .companies-grid .call-row > .last-cell {
-  font-size: 12px;
   line-height: 1.25;
 }
 
 .last-move {
   display: block;
-}
-
-.companies-grid .call-row .companies-pin {
-  align-items: start;
 }
 
 .flow-cell {
