@@ -396,16 +396,15 @@ input[type="search"]:focus {
 
 .week {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   overflow-x: auto;
   margin-top: 18px;
   padding-bottom: 6px;
 }
 
 .day-pill {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 8px 8px;
+  flex: 0 0 auto;
+  padding: 10px 12px;
   border: 1px solid var(--rule);
   background: var(--ink-2);
   color: inherit;
@@ -420,20 +419,19 @@ input[type="search"]:focus {
 
 .day-pill__name {
   display: block;
-  overflow: hidden;
   color: var(--mute);
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .day-pill__count {
   display: block;
   margin-top: 4px;
   font-family: var(--serif);
-  font-size: 20px;
+  font-size: 22px;
 }
 
 .board {
