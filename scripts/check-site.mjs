@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
 import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, fetchOratsSnapshot, formatMdY, daysUntilIso, nextBusinessDaysIso, formatPctPoints, ORATS_CACHE_HOURS, ORATS_SNAPSHOT_CALLS } from "../providers.js";
+import { optionStats, pnlAtExpiry, parseCalcNumber } from "../calculator.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, enrichCallPrices, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -500,6 +501,15 @@ try {
   assert(snap.history.length === 1 && snap.history[0].move > 6, "past earnings move from cores");
   assert(snap.ivRank1y === 72, "1y IV rank from ivrank");
 }
+assert(parseCalcNumber("$5.00") === 5, "calculator parses money");
+{
+  const longCall = { side: "long", type: "call", strike: 100, premium: 5, contracts: 1 };
+  assert(pnlAtExpiry({ ...longCall, stock: 110 }) === 500, "long call profits $5 past strike");
+  assert(pnlAtExpiry({ ...longCall, stock: 90 }) === -500, "long call loses the premium OTM");
+  const stats = optionStats(longCall);
+  assert(stats.breakeven === 105, "long call breakeven is strike plus premium");
+  assert(stats.maxLoss === 500 && stats.maxProfit == null, "long call max loss is premium, profit unlimited");
+}
 assert(html.includes("filter-toggle"), "index has collapsible filter bar");
 assert(html.includes("Market Cap"), "filter panel labels market cap");
 assert(html.includes("$100M+") && html.includes("$250M+") && html.includes("$500M+"), "market cap chips include mid-size floors");
@@ -507,6 +517,8 @@ assert(html.includes("Drag to rank extras"), "index explains extra-source rankin
 assert(html.includes("view-company"), "index has company view");
 assert(html.includes("view-companies"), "index has companies table view");
 assert(html.includes('data-nav="companies"'), "index has Companies menu link");
+assert(html.includes("view-calculator"), "index has calculator view");
+assert(html.includes('data-nav="calculator"'), "index has Calculator menu link");
 const appJs = await readFile(join(root, "app.js"), "utf8");
 assert(appJs.includes("companies-scroll"), "companies table can scroll horizontally");
 assert(appJs.includes("companies-pin"), "ticker and company freeze as one sticky column");

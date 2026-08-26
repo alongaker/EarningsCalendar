@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=ivrank" />
+    <link rel="stylesheet" href="./styles.css?v=calc" />
   </head>
   <body>
     <div class="shell">
@@ -42,6 +42,10 @@
         <a class="sidenav__link" id="nav-companies" href="#companies" data-nav="companies" title="Companies">
           <span class="sidenav__mark" aria-hidden="true">N</span>
           <span class="sidenav__text">Companies</span>
+        </a>
+        <a class="sidenav__link" id="nav-calculator" href="#calculator" data-nav="calculator" title="Calculator">
+          <span class="sidenav__mark" aria-hidden="true">P</span>
+          <span class="sidenav__text">Calculator</span>
         </a>
         <a class="sidenav__link" id="nav-keys" href="#keys" data-nav="keys" title="Settings">
           <span class="sidenav__mark" aria-hidden="true">K</span>
@@ -124,6 +128,49 @@
       <p class="status">Opening company…</p>
     </section>
 
+    <section id="view-calculator" class="calculator-page" hidden>
+      <h2 class="keys-title">Option profit calculator</h2>
+      <p class="keys-lede">
+        At-expiration P/L for a single call or put. No live chain and no extra
+        API calls — type the contract, then read breakeven, max profit/loss, and
+        the payoff chart. Not investment advice.
+      </p>
+      <form id="calc-form" class="calc-form" autocomplete="off">
+        <fieldset class="calc-fieldset">
+          <legend>Position</legend>
+          <div class="filters" role="group" aria-label="Side">
+            <label class="chip calc-chip"><input type="radio" name="side" value="long" checked /> Long</label>
+            <label class="chip calc-chip"><input type="radio" name="side" value="short" /> Short</label>
+          </div>
+          <div class="filters" role="group" aria-label="Option type">
+            <label class="chip calc-chip"><input type="radio" name="type" value="call" checked /> Call</label>
+            <label class="chip calc-chip"><input type="radio" name="type" value="put" /> Put</label>
+          </div>
+        </fieldset>
+        <div class="calc-fields">
+          <label class="key-add__field">
+            <span>Spot (optional)</span>
+            <input id="calc-spot" name="spot" type="text" inputmode="decimal" placeholder="100" />
+          </label>
+          <label class="key-add__field">
+            <span>Strike</span>
+            <input id="calc-strike" name="strike" type="text" inputmode="decimal" value="100" required />
+          </label>
+          <label class="key-add__field">
+            <span>Premium</span>
+            <input id="calc-premium" name="premium" type="text" inputmode="decimal" value="5" required />
+          </label>
+          <label class="key-add__field">
+            <span>Contracts</span>
+            <input id="calc-contracts" name="contracts" type="text" inputmode="numeric" value="1" />
+          </label>
+        </div>
+      </form>
+      <dl id="calc-stats" class="calc-stats"></dl>
+      <div id="calc-chart" class="calc-chart" aria-hidden="true"></div>
+      <p class="calc-note">P/L is at expiration, 100 shares per contract. Short calls have unlimited risk.</p>
+    </section>
+
     <section id="view-keys" class="keys" hidden>
       <h2 class="keys-title">API Key Management</h2>
       <p class="keys-lede">
@@ -185,6 +232,6 @@
         if (saved.collapsed) document.documentElement.classList.add("nav-collapsed");
       } catch {}
     </script>
-    <script src="./app.js?v=ivrank" type="module"></script>
+    <script src="./app.js?v=calc" type="module"></script>
   </body>
 </html>

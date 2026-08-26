@@ -1,5 +1,6 @@
 import { PROVIDERS, OPTIONS_PROVIDERS, allKeyProviders, providersByName, providerById, optionProviderById, fetchProvider, testOratsKey, fetchOratsSnapshot, mergeCalls, rankedIds, reorderIds, formatCompanyName, stripCompanySuffixes, formatEps, formatFiscalPeriod, canonicalSymbol, marketDateIso, windowUpcoming, formatMarketCap, formatMdY, daysUntilIso, nextBusinessDaysIso, formatPctPoints, formatUsdMoney, ORATS_CACHE_HOURS, ORATS_SNAPSHOT_CALLS } from "./providers.js";
 import { fetchNasdaqCompany, isSymbol, roundToHundredth, enrichSparseCalls, enrichLastRevenue, enrichCallPrices, hydrateLastRevenue, hydratePrices } from "./company.js";
+import { optionStats, pnlAtExpiry, payoffSeries, parseCalcNumber, formatCalcMoney } from "./calculator.js";
 
 const TIME_LABEL = {
   "before-open": "Before open",
@@ -45,6 +46,10 @@ const els = {
   viewKeys: document.querySelector("#view-keys"),
   viewCompany: document.querySelector("#view-company"),
   viewCompanies: document.querySelector("#view-companies"),
+  viewCalculator: document.querySelector("#view-calculator"),
+  calcForm: document.querySelector("#calc-form"),
+  calcStats: document.querySelector("#calc-stats"),
+  calcChart: document.querySelector("#calc-chart"),
   companiesBoard: document.querySelector("#companies-board"),
   toolbar: document.querySelector("#shared-toolbar"),
   keyForm: document.querySelector("#key-form"),
@@ -230,6 +235,7 @@ function setView(tab, opts = {}) {
   els.viewKeys.hidden = tab !== "keys";
   els.viewCompany.hidden = tab !== "company";
   if (els.viewCompanies) els.viewCompanies.hidden = tab !== "companies";
+  if (els.viewCalculator) els.viewCalculator.hidden = tab !== "calculator";
   if (els.toolbar) els.toolbar.hidden = tab !== "calendar" && tab !== "companies";
   const navTab = tab === "company" ? state.returnTab || "calendar" : tab;
   document.querySelectorAll(".sidenav__link").forEach((link) => {
@@ -242,14 +248,22 @@ function setView(tab, opts = {}) {
   if (els.navKeysText) els.navKeysText.textContent = "Settings";
   if (els.pageTitle) {
     els.pageTitle.textContent =
-      tab === "keys" ? "Settings" : tab === "companies" ? "Companies" : "Earnings Calendar";
+      tab === "keys"
+        ? "Settings"
+        : tab === "companies"
+          ? "Companies"
+          : tab === "calculator"
+            ? "Calculator"
+            : "Earnings Calendar";
   }
   if (tab === "keys") document.title = "Settings — Earnings Calendar";
   else if (tab === "companies") document.title = "Companies — Earnings Calendar";
+  else if (tab === "calculator") document.title = "Calculator — Earnings Calendar";
   if (opts.updateHash !== false) {
     let hash = "#calendar";
     if (tab === "keys") hash = "#keys";
     if (tab === "companies") hash = "#companies";
+    if (tab === "calculator") hash = "#calculator";
     if (tab === "company" && state.companySymbol) {
       hash = state.companyDate
         ? `#company/${state.companySymbol}/${state.companyDate}`
@@ -264,6 +278,10 @@ function setView(tab, opts = {}) {
     els.asOf.textContent = optionsOn ? `${extra} · ORATS options key saved` : extra;
     els.source.textContent = "Keys stay in this browser";
     renderKeysPage();
+  } else if (tab === "calculator") {
+    els.asOf.textContent = "At-expiration P/L · no API calls";
+    els.source.textContent = "Single call or put";
+    updateCalculator();
   } else if (tab === "company" && state.companySymbol) {
     showCompany(state.companySymbol, state.companyDate);
   } else if (state.snapshot) {
@@ -1056,10 +1074,101 @@ function applyNavCollapsed(collapsed) {
   requestAnimationFrame(syncCompaniesOverflow);
 }
 
+function readCalcInput() {
+  const form = els.calcForm;
+  if (!form) return null;
+  const data = new FormData(form);
+  const strike = parseCalcNumber(data.get("strike"));
+  const premium = parseCalcNumber(data.get("premium"));
+  const contracts = parseCalcNumber(data.get("contracts")) ?? 1;
+  const spot = parseCalcNumber(data.get("spot"));
+  if (strike == null || strike < 0 || premium == null || premium < 0 || contracts <= 0) return null;
+  return {
+    side: data.get("side") === "short" ? "short" : "long",
+    type: data.get("type") === "put" ? "put" : "call",
+    strike,
+    premium,
+    contracts,
+    spot: spot != null && spot >= 0 ? spot : 0,
+  };
+}
+
+function drawCalcChart(input, stats) {
+  const host = els.calcChart;
+  if (!host) return;
+  const series = payoffSeries(input);
+  const pnls = series.map((row) => row.pnl);
+  const minP = Math.min(0, ...pnls);
+  const maxP = Math.max(0, ...pnls);
+  const span = Math.max(maxP - minP, 1);
+  const pad = { l: 58, r: 16, t: 16, b: 36 };
+  const w = 640;
+  const h = 280;
+  const innerW = w - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+  const x0 = series[0].stock;
+  const x1 = series[series.length - 1].stock;
+  const xSpan = Math.max(x1 - x0, 1);
+  const xOf = (stock) => pad.l + ((stock - x0) / xSpan) * innerW;
+  const yOf = (pnl) => pad.t + ((maxP - pnl) / span) * innerH;
+  const pts = series.map((row) => `${xOf(row.stock).toFixed(1)},${yOf(row.pnl).toFixed(1)}`).join(" ");
+  const zeroY = yOf(0);
+  const beX = stats.breakeven != null ? xOf(stats.breakeven) : null;
+  const spotX = input.spot > 0 ? xOf(input.spot) : null;
+  const yTicks = [minP, 0, maxP];
+  const xTicks = [x0, (x0 + x1) / 2, x1];
+  host.innerHTML = `<svg class="calc-svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="Payoff at expiration">
+    <line class="calc-axis" x1="${pad.l}" y1="${zeroY}" x2="${w - pad.r}" y2="${zeroY}" />
+    <line class="calc-axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h - pad.b}" />
+    ${yTicks
+      .map(
+        (val) =>
+          `<text class="calc-label" x="${pad.l - 8}" y="${yOf(val) + 4}" text-anchor="end">${escapeHtml(formatCalcMoney(val))}</text>`
+      )
+      .join("")}
+    ${xTicks
+      .map(
+        (val) =>
+          `<text class="calc-label" x="${xOf(val)}" y="${h - 10}" text-anchor="middle">$${Math.round(val)}</text>`
+      )
+      .join("")}
+    ${spotX != null ? `<line class="calc-spot" x1="${spotX}" y1="${pad.t}" x2="${spotX}" y2="${h - pad.b}" />` : ""}
+    ${beX != null ? `<line class="calc-be" x1="${beX}" y1="${pad.t}" x2="${beX}" y2="${h - pad.b}" />` : ""}
+    <polyline class="calc-line" fill="none" points="${pts}" />
+  </svg>`;
+}
+
+function updateCalculator() {
+  if (!els.calcForm) return;
+  els.calcForm.querySelectorAll(".calc-chip").forEach((lab) => {
+    lab.classList.toggle("is-on", Boolean(lab.querySelector("input")?.checked));
+  });
+  const input = readCalcInput();
+  if (!input) {
+    if (els.calcStats) els.calcStats.innerHTML = `<div><dt>Status</dt><dd>Enter a strike and premium.</dd></div>`;
+    if (els.calcChart) els.calcChart.innerHTML = "";
+    return;
+  }
+  const stats = optionStats(input);
+  const atSpot = input.spot > 0 ? pnlAtExpiry({ ...input, stock: input.spot }) : null;
+  if (els.calcStats) {
+    els.calcStats.innerHTML = `
+      <div><dt>Breakeven</dt><dd>$${input.type === "put" && stats.breakeven < 0 ? "—" : stats.breakeven.toFixed(2)}</dd></div>
+      <div><dt>Max profit</dt><dd>${formatCalcMoney(stats.maxProfit)}</dd></div>
+      <div><dt>Max loss</dt><dd>${formatCalcMoney(stats.maxLoss)}</dd></div>
+      <div><dt>P/L at spot</dt><dd>${atSpot == null ? "—" : formatCalcMoney(atSpot)}</dd></div>`;
+  }
+  drawCalcChart(input, stats);
+}
+
 function applyHash() {
   const hash = (location.hash || "#calendar").replace(/^#/, "");
   if (hash === "keys") {
     setView("keys", { updateHash: false });
+    return;
+  }
+  if (hash === "calculator") {
+    setView("calculator", { updateHash: false });
     return;
   }
   if (hash === "companies") {
@@ -2002,6 +2111,10 @@ els.optionsKeyList?.addEventListener("click", async (event) => {
   }
   renderKeysPage();
 });
+
+els.calcForm?.addEventListener("input", updateCalculator);
+els.calcForm?.addEventListener("change", updateCalculator);
+els.calcForm?.addEventListener("submit", (event) => event.preventDefault());
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "/" && (state.tab === "calendar" || state.tab === "companies") && document.activeElement !== els.q) {
