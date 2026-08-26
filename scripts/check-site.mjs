@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, fetchOratsSnapshot, formatMdY, daysUntilIso, nextBusinessDaysIso, formatPctPoints } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, fetchOratsSnapshot, formatMdY, daysUntilIso, nextBusinessDaysIso, formatPctPoints, ORATS_CACHE_HOURS } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, enrichCallPrices, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -506,7 +506,9 @@ assert(appJs.includes("Implied move"), "company options block shows implied move
 assert(appJs.includes("Past earnings moves"), "company options block shows past moves");
 assert(appJs.includes("nextBusinessDaysIso"), "companies list uses the next five business days");
 assert(appJs.includes("Next 5 business days"), "companies heading names the five-day window");
-assert(!/renderCompanies[\s\S]*fetchOratsSnapshot/.test(appJs), "companies list does not fetch ORATS");
+assert(appJs.includes("hydrateCompaniesOptions"), "companies list can fill ORATS columns from cache");
+assert(appJs.includes("Imp. move"), "companies table has implied move column");
+assert(ORATS_CACHE_HOURS === 2, "ORATS cache is two hours");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");
 

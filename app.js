@@ -343,12 +343,85 @@ function readOratsCache(ticker) {
 
 function writeOratsCache(ticker, snapshot) {
   const at = Date.now();
+  const ttl = ORATS_CACHE_HOURS * 60 * 60 * 1000;
   try {
     const bag = JSON.parse(localStorage.getItem(ORATS_STORAGE) || "{}");
     bag[ticker] = { at, data: snapshot };
+    const now = Date.now();
+    for (const key of Object.keys(bag)) {
+      if (!bag[key]?.at || now - bag[key].at > ttl * 4) delete bag[key];
+    }
     localStorage.setItem(ORATS_STORAGE, JSON.stringify(bag));
   } catch {}
   return at;
+}
+
+function optionMovePts(snap) {
+  if (!snap) return null;
+  return snap.impliedMove ?? snap.impliedEarningsMove ?? null;
+}
+
+function paintCompaniesOptions(symbol, snap, placeholder = "—") {
+  const rows = els.companiesBoard?.querySelectorAll(`.call-row[data-symbol="${CSS.escape(symbol)}"]`);
+  if (!rows?.length) return;
+  const move = formatPctPoints(optionMovePts(snap));
+  const avg = formatPctPoints(snap?.absAvgErnMv);
+  const iv = formatPctPoints(snap?.iv30d || snap?.iv || snap?.front?.atmIv);
+  const straddle = formatUsdMoney(snap?.front?.straddle);
+  rows.forEach((row) => {
+    const set = (key, value) => {
+      const el = row.querySelector(`[data-opt="${key}"]`);
+      if (el) el.textContent = value || placeholder;
+    };
+    set("move", move);
+    set("avg", avg);
+    set("iv", iv);
+    set("straddle", straddle);
+  });
+}
+
+async function hydrateCompaniesOptions(calls) {
+  if (!state.keys.orats || state.tab !== "companies" || !calls.length) return;
+  const symbols = [...new Set(calls.map((call) => call.symbol))];
+  const missing = [];
+  for (const symbol of symbols) {
+    const snap = readOratsCache(symbol);
+    if (snap) {
+      paintCompaniesOptions(symbol, snap);
+      continue;
+    }
+    const failed = state.optionsBySymbol[symbol];
+    if (failed?.status === "err" && failed.at && Date.now() - failed.at < ORATS_CACHE_HOURS * 60 * 60 * 1000) {
+      paintCompaniesOptions(symbol, null);
+      continue;
+    }
+    paintCompaniesOptions(symbol, null, "…");
+    missing.push(symbol);
+  }
+  const chunk = 6;
+  for (let i = 0; i < missing.length; i += chunk) {
+    if (state.tab !== "companies") return;
+    const batch = missing.slice(i, i + chunk);
+    await Promise.all(
+      batch.map(async (symbol) => {
+        if (readOratsCache(symbol)) {
+          paintCompaniesOptions(symbol, readOratsCache(symbol));
+          return;
+        }
+        if (state.optionsBySymbol[symbol]?.status === "loading") return;
+        state.optionsBySymbol[symbol] = { status: "loading" };
+        try {
+          const snapshot = await pingOratsSnapshot(state.keys.orats, symbol);
+          const at = writeOratsCache(symbol, snapshot);
+          state.optionsBySymbol[symbol] = { status: "ok", snapshot, cached: false, at };
+          paintCompaniesOptions(symbol, snapshot);
+        } catch {
+          state.optionsBySymbol[symbol] = { status: "err", at: Date.now() };
+          paintCompaniesOptions(symbol, null);
+        }
+      })
+    );
+  }
 }
 
 function tenorRows(snapshot) {
@@ -452,7 +525,7 @@ function renderOptionsBlock(symbol, profile) {
   if (!state.keys.orats) {
     return `<section class="history options-block">
       <h3>Options</h3>
-      <p class="empty">Add an ORATS key in Settings to load implied move, straddles, and past earnings moves for this ticker. That uses ${ORATS_SNAPSHOT_CALLS} of 20,000 monthly calls, then caches for ${ORATS_CACHE_HOURS} hours. The Companies list never fetches options.</p>
+      <p class="empty">Add an ORATS key in Settings to load implied move, straddles, and past earnings moves. That uses ${ORATS_SNAPSHOT_CALLS} call per ticker, then caches ${ORATS_CACHE_HOURS} hours in this browser.</p>
     </section>`;
   }
   const pack = state.optionsBySymbol[symbol];
@@ -1172,6 +1245,13 @@ function renderCompanies(calls) {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     return a.symbol.localeCompare(b.symbol);
   });
+  const showOpts = Boolean(state.keys.orats);
+  const optionCells = showOpts
+    ? `<div class="num" data-opt="move">…</div>
+        <div class="num" data-opt="avg">…</div>
+        <div class="num" data-opt="iv">…</div>
+        <div class="num" data-opt="straddle">…</div>`
+    : "";
   const body = rows
     .map((call) => {
       const days = daysUntilIso(call.date, today);
@@ -1185,6 +1265,7 @@ function renderCompanies(calls) {
         <div class="num">${escapeHtml(daysLabel)}</div>
         <div class="num">${dash(call.price)}</div>
         <div class="num">${escapeHtml(call.marketCapDisplay || "—")}</div>
+        ${optionCells}
       </div>`;
     })
     .join("");
@@ -1194,12 +1275,12 @@ function renderCompanies(calls) {
       <span>${rows.length} compan${rows.length === 1 ? "y" : "ies"}</span>
     </div>
     ${
-      state.keys.orats
-        ? `<p class="options-lede">Options data is on each company page — click a row. This list does not call ORATS (that would be one request per ticker).</p>`
+      showOpts
+        ? `<p class="options-lede">Implied move, average earnings move, IV, and front straddle from ORATS. Cached ${ORATS_CACHE_HOURS} hours in this browser — reload does not spend quota until then. One call per ticker (${rows.length} names on this list).</p>`
         : ""
     }
     <div class="companies-scroll">
-    <div class="companies-grid">
+    <div class="companies-grid${showOpts ? " companies-grid--options" : ""}">
       <div class="companies-grid__head">
         <div class="companies-pin">
           <span>Ticker</span>
@@ -1209,11 +1290,20 @@ function renderCompanies(calls) {
         <div class="num">Until Call</div>
         <div class="num">Price</div>
         <div class="num">Market cap</div>
+        ${
+          showOpts
+            ? `<div class="num">Imp. move</div>
+        <div class="num">Avg move</div>
+        <div class="num">IV</div>
+        <div class="num">Straddle</div>`
+            : ""
+        }
       </div>
       ${body}
     </div>
     </div>
   </section>`;
+  if (showOpts) void hydrateCompaniesOptions(rows);
 }
 
 function render() {

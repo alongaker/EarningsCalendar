@@ -57,7 +57,7 @@ export const OPTIONS_PROVIDERS = [
     id: "orats",
     name: "ORATS",
     blurb:
-      "Options-only key for the company page (implied move, straddles, past earnings moves). Delayed data, 20,000 requests per month. One call per ticker, then cached in this browser. Not mixed into the Nasdaq calendar or Companies list.",
+      "Options-only key for implied move, IV, and straddles on Companies and the company page. Delayed data, 20,000 requests per month. One call per ticker, cached 2 hours in this browser. Not mixed into the Nasdaq calendar.",
     signup: "https://orats.com/data-api",
     docs: "https://orats.com/docs/delayed-data-api",
     placeholder: "ORATS API token",
@@ -780,7 +780,7 @@ export async function testOratsKey(apiKey, { fetchImpl = fetch } = {}) {
 }
 
 export const ORATS_SNAPSHOT_CALLS = 1;
-export const ORATS_CACHE_HOURS = 12;
+export const ORATS_CACHE_HOURS = 2;
 
 const ORATS_TOD = {
   1: "Unknown",
