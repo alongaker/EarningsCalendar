@@ -1365,19 +1365,6 @@ function renderCompanies(calls) {
     }
     <div class="companies-scroll">
     <div class="companies-grid${showOpts ? " companies-grid--options" : ""}">
-      ${
-        showOpts
-          ? `<div class="companies-grid__head companies-grid__groups" aria-hidden="true">
-        <div class="companies-pin"><span></span><span>Name</span></div>
-        <div class="g-span g-when">When</div>
-        <div class="g-span g-stock">Stock</div>
-        <div class="g-span g-event">Priced for this print</div>
-        <div class="g-span g-hist">Versus history</div>
-        <div class="g-span g-iv">IV</div>
-        <div class="g-span g-pos">Call vs put</div>
-      </div>`
-          : ""
-      }
       <div class="companies-grid__head">
         <div class="companies-pin">
           <span>Ticker</span>
