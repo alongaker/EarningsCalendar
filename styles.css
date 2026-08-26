@@ -671,7 +671,12 @@ input[type="search"]:focus {
 
 .companies-grid .call-row > .companies-pin {
   padding: 0;
-  align-items: start;
+  align-items: center;
+}
+
+.companies-grid .call-row > .num:not(.last-cell) {
+  display: flex;
+  align-items: center;
 }
 
 .companies-grid .call-row > .flow-cell,
