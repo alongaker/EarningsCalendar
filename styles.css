@@ -655,23 +655,26 @@ input[type="search"]:focus {
 .companies-grid .call-row > .flow-cell,
 .companies-grid .call-row > .last-cell {
   white-space: normal;
+  overflow: hidden;
 }
 
-.last-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0;
+.companies-grid .call-row > .last-cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: auto;
+  justify-items: end;
+  align-content: center;
+  row-gap: 1px;
   font-size: 12px;
-  font-variant-numeric: tabular-nums;
   line-height: 1.2;
 }
 
 .last-move {
   display: block;
+  width: 100%;
   min-width: 0;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .flow-cell {

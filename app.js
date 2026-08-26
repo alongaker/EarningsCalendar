@@ -1318,9 +1318,9 @@ function renderCompanies(calls) {
         <div class="num" data-opt="avg">…</div>
         <div class="num" data-opt="ratio">…</div>
         <div class="num last-cell" data-opt="last" title="Actual gap moves at the last three earnings">
-          <span class="last-move" data-last="0">…</span>
-          <span class="last-move" data-last="1">…</span>
-          <span class="last-move" data-last="2">…</span>
+          <div class="last-move" data-last="0">…</div>
+          <div class="last-move" data-last="1">…</div>
+          <div class="last-move" data-last="2">…</div>
         </div>
         <div class="num" data-opt="iv">…</div>
         <div class="flow-cell" data-opt="cpvol" title="Call volume / put volume today">
