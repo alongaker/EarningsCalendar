@@ -523,7 +523,7 @@ input[type="search"]:focus {
   --companies-straddle: 6.8rem;
   --companies-dte: 4.2rem;
   --companies-ratio: 5.6rem;
-  --companies-last: 9.6rem;
+  --companies-last: 5.8rem;
   --companies-flow: 6.6rem;
   display: flex;
   flex-direction: column;
@@ -532,7 +532,7 @@ input[type="search"]:focus {
 }
 
 .companies-grid--options {
-  min-width: 108rem;
+  min-width: 104rem;
 }
 
 .companies-grid__head,
@@ -648,14 +648,22 @@ input[type="search"]:focus {
   white-space: nowrap;
 }
 
-.companies-grid .call-row > .flow-cell {
+.companies-grid .call-row > .flow-cell,
+.companies-grid .call-row > .last-cell {
   white-space: normal;
 }
 
 .companies-grid .call-row > .last-cell {
-  overflow: hidden;
-  text-overflow: ellipsis;
   font-size: 12px;
+  line-height: 1.25;
+}
+
+.last-move {
+  display: block;
+}
+
+.companies-grid .call-row .companies-pin {
+  align-items: start;
 }
 
 .flow-cell {
