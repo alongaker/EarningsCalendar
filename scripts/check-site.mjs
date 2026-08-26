@@ -507,7 +507,7 @@ assert(appJs.includes("Past earnings moves"), "company options block shows past 
 assert(appJs.includes("nextBusinessDaysIso"), "companies list uses the next five business days");
 assert(appJs.includes("Next 5 business days"), "companies heading names the five-day window");
 assert(appJs.includes("hydrateCompaniesOptions"), "companies list can fill ORATS columns from cache");
-assert(appJs.includes("Imp. move"), "companies table has implied move column");
+assert(appJs.includes("Implied Move"), "companies table has implied move column");
 assert(appJs.includes("Imp/avg"), "companies table has implied vs average");
 assert(appJs.includes("Last 3"), "companies table has last three earnings moves");
 assert(appJs.includes("last-cell") && appJs.includes("data-last"), "last three moves stack as block lines");

@@ -1359,7 +1359,7 @@ function renderCompanies(calls) {
       showOpts
         ? `<div class="options-guide">
       <p>Read left to right: when it reports, the stock, what options are pricing for the print, whether that is rich versus history, then call vs put activity.</p>
-      <p><strong>Imp. move</strong> is the jump the market is pricing. <strong>Imp/avg</strong> over 1.0 means this report is priced bigger than usual. <strong>Last 3</strong> are the actual moves at the last three prints. <strong>DTE</strong> is days until the straddle expires. <strong>C/P</strong> is calls vs puts (today’s volume, then contracts still open). Hover a column for a reminder. Cached ${ORATS_CACHE_HOURS}h · 1 ORATS call per ticker (${rows.length} names).</p>
+      <p><strong>Implied Move</strong> is the jump the market is pricing. <strong>Imp/avg</strong> over 1.0 means this report is priced bigger than usual. <strong>Last 3</strong> are the actual moves at the last three prints. <strong>DTE</strong> is days until the straddle expires. <strong>C/P</strong> is calls vs puts (today’s volume, then contracts still open). Hover a column for a reminder. Cached ${ORATS_CACHE_HOURS}h · 1 ORATS call per ticker (${rows.length} names).</p>
     </div>`
         : ""
     }
@@ -1389,15 +1389,15 @@ function renderCompanies(calls) {
         <div class="num">Market cap</div>
         ${
           showOpts
-            ? `<div class="num" title="Percent jump the options market is pricing into the report">Imp. move</div>
+            ? `<div class="num" title="Percent jump the options market is pricing into the report">Implied Move</div>
         <div class="num" title="Cost of the ATM call plus put">Straddle</div>
         <div class="num" title="Days until that straddle expires">DTE</div>
-        <div class="num" title="Typical actual move around past reports">Avg move</div>
+        <div class="num" title="Typical actual move around past reports">Average Move</div>
         <div class="num" title="Implied move divided by average actual. Above 1.0 is priced richer than usual">Imp/avg</div>
         <div class="num" title="Actual gap moves at the last three earnings">Last 3</div>
-        <div class="num" title="At-the-money implied volatility">IV</div>
+        <div class="num" title="At-the-money implied volatility">Implied Volatility</div>
         <div class="num" title="Call volume / put volume today">Volume</div>
-        <div class="num" title="Call open interest / put open interest">Open int.</div>`
+        <div class="num" title="Call open interest / put open interest">Open Interest</div>`
             : ""
         }
       </div>

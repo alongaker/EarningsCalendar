@@ -517,14 +517,14 @@ input[type="search"]:focus {
   --companies-until: 5.6rem;
   --companies-price: 7.2rem;
   --companies-cap: 7.2rem;
-  --companies-move: 6.4rem;
-  --companies-avg: 6.4rem;
-  --companies-iv: 5.2rem;
+  --companies-move: 7.2rem;
+  --companies-avg: 7.2rem;
+  --companies-iv: 7.4rem;
   --companies-straddle: 6.8rem;
   --companies-dte: 4.2rem;
   --companies-ratio: 5.6rem;
   --companies-last: 5.8rem;
-  --companies-flow: 6.6rem;
+  --companies-flow: 7.2rem;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -532,7 +532,7 @@ input[type="search"]:focus {
 }
 
 .companies-grid--options {
-  min-width: 104rem;
+  min-width: 110rem;
 }
 
 .companies-grid__head,
@@ -646,8 +646,11 @@ input[type="search"]:focus {
 .companies-grid__head:not(.companies-grid__groups) > *:not(.companies-pin) {
   display: flex;
   align-items: flex-end;
-  min-height: 2.7em;
+  min-height: 3.4em;
   white-space: normal;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .companies-grid__head:not(.companies-grid__groups) .companies-pin {
@@ -660,6 +663,8 @@ input[type="search"]:focus {
   align-items: flex-end;
   white-space: normal;
   line-height: 1.2;
+  overflow: hidden;
+  overflow-wrap: break-word;
 }
 
 .companies-grid .call-row > * {
