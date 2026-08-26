@@ -430,8 +430,11 @@ function paintCompaniesOptions(symbol, snap, placeholder = "—") {
   });
 }
 
+let companiesHydrateGen = 0;
+
 async function hydrateCompaniesOptions(calls) {
   if (!state.keys.orats || state.tab !== "companies" || !calls.length) return;
+  const gen = ++companiesHydrateGen;
   const symbols = [...new Set(calls.map((call) => call.symbol))];
   const missing = [];
   for (const symbol of symbols) {
@@ -450,7 +453,7 @@ async function hydrateCompaniesOptions(calls) {
   }
   const chunk = 6;
   for (let i = 0; i < missing.length; i += chunk) {
-    if (state.tab !== "companies") return;
+    if (state.tab !== "companies" || gen !== companiesHydrateGen) return;
     const batch = missing.slice(i, i + chunk);
     await Promise.all(
       batch.map(async (symbol) => {
@@ -1287,6 +1290,9 @@ function currentWindow(snap) {
 
 function renderCompanies(calls) {
   if (!els.companiesBoard) return;
+  const scroller = els.companiesBoard.querySelector(".companies-scroll");
+  const savedX = scroller?.scrollLeft || 0;
+  const savedY = window.scrollY;
   if (!calls.length) {
     els.companiesBoard.innerHTML = `<p class="empty">No calls match those filters.</p>`;
     return;
@@ -1325,8 +1331,8 @@ function renderCompanies(calls) {
         </div>
         <div class="num">${escapeHtml(formatMdY(call.date) || "—")}</div>
         <div class="num">${escapeHtml(daysLabel)}</div>
-        <div class="num">${dash(call.price)}</div>
-        <div class="num">${escapeHtml(call.marketCapDisplay || "—")}</div>
+        <div class="num" data-price>${dash(call.price)}</div>
+        <div class="num" data-cap>${escapeHtml(call.marketCapDisplay || "—")}</div>
         ${optionCells}
       </div>`;
     })
@@ -1387,14 +1393,21 @@ function renderCompanies(calls) {
     </div>
   </section>`;
   if (showOpts) void hydrateCompaniesOptions(rows);
-  requestAnimationFrame(syncCompaniesOverflow);
+  requestAnimationFrame(() => {
+    syncCompaniesOverflow();
+    const scroller = els.companiesBoard?.querySelector(".companies-scroll");
+    if (scroller && savedX) scroller.scrollLeft = savedX;
+    if (savedY) window.scrollTo(0, savedY);
+  });
 }
 
 function syncCompaniesOverflow() {
   const scroller = els.companiesBoard?.querySelector(".companies-scroll");
   if (!scroller) return;
+  const x = scroller.scrollLeft;
   const overflow = scroller.scrollWidth > scroller.clientWidth + 1;
   scroller.classList.toggle("is-fitted", !overflow);
+  if (overflow) scroller.scrollLeft = x;
 }
 
 function render() {
@@ -1547,6 +1560,20 @@ function carryMetrics(calls) {
 let pricesBusy = false;
 let pricesQueued = false;
 
+function patchCompaniesRows(calls) {
+  if (!els.companiesBoard?.querySelector(".companies-grid")) return false;
+  const bySym = new Map(calls.map((call) => [call.symbol, call]));
+  els.companiesBoard.querySelectorAll(".call-row[data-symbol]").forEach((row) => {
+    const call = bySym.get(row.dataset.symbol);
+    if (!call) return;
+    const price = row.querySelector("[data-price]");
+    if (price) price.innerHTML = dash(call.price);
+    const cap = row.querySelector("[data-cap]");
+    if (cap) cap.textContent = call.marketCapDisplay || "—";
+  });
+  return true;
+}
+
 async function fillMissingPrices() {
   if (!state.snapshot) return;
   if (pricesBusy) {
@@ -1561,10 +1588,12 @@ async function fillMissingPrices() {
     const next = await enrichCallPrices(calls, {
       onProgress: (updated) => {
         state.snapshot = { ...state.snapshot, calls: updated, count: updated.length };
+        if (state.tab === "companies" && patchCompaniesRows(updated)) return;
         if (state.tab === "companies" || state.tab === "calendar") render();
       },
     });
     state.snapshot = { ...state.snapshot, calls: next, count: next.length };
+    if (state.tab === "companies" && patchCompaniesRows(next)) return;
     if (state.tab === "companies" || state.tab === "calendar") render();
   } finally {
     pricesBusy = false;
@@ -1591,12 +1620,14 @@ async function applyCalendar(base, { refreshKeys = true } = {}) {
   const filled = await enrichSparseCalls(named.calls, {
     onProgress: (calls) => {
       state.snapshot = { ...named, calls, count: calls.length };
+      if (state.tab === "companies" && patchCompaniesRows(calls)) return;
       if (state.tab === "calendar" || state.tab === "companies") render();
     },
   });
   const withRev = await enrichLastRevenue(filled, {
     onProgress: (calls) => {
       state.snapshot = { ...named, calls, count: calls.length };
+      if (state.tab === "companies" && patchCompaniesRows(calls)) return;
       if (state.tab === "calendar" || state.tab === "companies") render();
     },
   });
