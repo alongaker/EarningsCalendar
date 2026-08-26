@@ -461,19 +461,14 @@ function companiesColumnGuide(nameCount) {
   return `<details class="options-guide"${companiesGuideOpen ? " open" : ""}>
     <summary class="options-guide__toggle">Column guide</summary>
     <div class="options-guide__body">
-      <table class="table options-guide__table">
-        <thead>
-          <tr><th>Column</th><th>Meaning</th></tr>
-        </thead>
-        <tbody>
-          ${rows
-            .map(
-              ([col, meaning]) =>
-                `<tr><th scope="row">${escapeHtml(col)}</th><td>${escapeHtml(meaning)}</td></tr>`
-            )
-            .join("")}
-        </tbody>
-      </table>
+      <dl class="options-guide__list">
+        ${rows
+          .map(
+            ([col, meaning]) =>
+              `<div class="options-guide__row"><dt>${escapeHtml(col)}</dt><dd>${escapeHtml(meaning)}</dd></div>`
+          )
+          .join("")}
+      </dl>
       <p class="options-guide__note">Cached ${ORATS_CACHE_HOURS}h · 1 ORATS call per ticker (${nameCount} names).</p>
     </div>
   </details>`;
