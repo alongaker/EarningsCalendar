@@ -498,6 +498,14 @@ input[type="search"]:focus {
   -webkit-overflow-scrolling: touch;
 }
 
+.companies-scroll.is-fitted {
+  overflow-x: hidden;
+}
+
+.companies-scroll.is-fitted .companies-pin {
+  box-shadow: none;
+}
+
 .companies-grid {
   --companies-pin: 21rem;
   --companies-date: 7.2rem;
@@ -510,7 +518,7 @@ input[type="search"]:focus {
   --companies-straddle: 6.8rem;
   display: flex;
   flex-direction: column;
-  width: max-content;
+  width: 100%;
   min-width: 52rem;
 }
 
@@ -522,7 +530,7 @@ input[type="search"]:focus {
 .companies-grid .call-row {
   display: grid;
   grid-template-columns:
-    var(--companies-pin)
+    minmax(var(--companies-pin), 1fr)
     var(--companies-date)
     var(--companies-until)
     var(--companies-price)
@@ -532,7 +540,7 @@ input[type="search"]:focus {
 .companies-grid--options .companies-grid__head,
 .companies-grid--options .call-row {
   grid-template-columns:
-    var(--companies-pin)
+    minmax(var(--companies-pin), 1fr)
     var(--companies-date)
     var(--companies-until)
     var(--companies-price)

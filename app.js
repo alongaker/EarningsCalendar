@@ -1304,6 +1304,14 @@ function renderCompanies(calls) {
     </div>
   </section>`;
   if (showOpts) void hydrateCompaniesOptions(rows);
+  requestAnimationFrame(syncCompaniesOverflow);
+}
+
+function syncCompaniesOverflow() {
+  const scroller = els.companiesBoard?.querySelector(".companies-scroll");
+  if (!scroller) return;
+  const overflow = scroller.scrollWidth > scroller.clientWidth + 1;
+  scroller.classList.toggle("is-fitted", !overflow);
 }
 
 function render() {
@@ -1852,6 +1860,7 @@ document.addEventListener("keydown", (event) => {
 
 applyHash();
 window.addEventListener("hashchange", applyHash);
+window.addEventListener("resize", syncCompaniesOverflow);
 applyNavCollapsed(navCollapsed());
 els.navToggle?.addEventListener("click", () => applyNavCollapsed(!navCollapsed()));
 
