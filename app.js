@@ -132,12 +132,12 @@ function longDate(iso) {
 }
 
 function shortDate(iso) {
-  return new Intl.DateTimeFormat("en-US", {
+  const date = fmtDate(iso);
+  const weekday = new Intl.DateTimeFormat("en-US", {
     weekday: "short",
-    month: "short",
-    day: "numeric",
     timeZone: "UTC",
-  }).format(fmtDate(iso));
+  }).format(date);
+  return `${weekday} ${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
 }
 
 function escapeHtml(value) {
