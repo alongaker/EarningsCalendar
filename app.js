@@ -360,22 +360,27 @@ function formatCompactCount(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "";
   const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  if (abs >= 1_000_000) {
+    const m = n / 1_000_000;
+    return `${Math.abs(m) >= 10 ? m.toFixed(0) : m.toFixed(1)}M`;
+  }
+  if (abs >= 1000) {
+    const k = n / 1000;
+    return `${Math.abs(k) >= 10 ? k.toFixed(0) : k.toFixed(1)}k`;
+  }
   return String(Math.round(n));
+}
+
+function formatIvCell(points) {
+  if (points == null || !Number.isFinite(Number(points))) return "";
+  const n = Number(points);
+  return `${Math.abs(n) >= 10 ? n.toFixed(0) : n.toFixed(1)}%`;
 }
 
 function lastMovesLabel(snap) {
   const rows = (snap?.history || []).filter((row) => row.move != null).slice(0, 3);
   if (!rows.length) return "";
   return rows.map((row) => formatPctPoints(row.move)).join(" · ");
-}
-
-function pairLabel(left, right) {
-  const a = formatCompactCount(left);
-  const b = formatCompactCount(right);
-  if (!a && !b) return "";
-  return `${a || "—"} / ${b || "—"}`;
 }
 
 function optionMovePts(snap) {
@@ -389,13 +394,11 @@ function paintCompaniesOptions(symbol, snap, placeholder = "—") {
   const movePts = optionMovePts(snap);
   const move = formatPctPoints(movePts);
   const avg = formatPctPoints(snap?.absAvgErnMv);
-  const iv = formatPctPoints(snap?.iv30d || snap?.iv || snap?.front?.atmIv);
+  const iv = formatIvCell(snap?.iv30d || snap?.iv || snap?.front?.atmIv);
   const straddle = formatUsdMoney(snap?.front?.straddle);
   const dte = snap?.front?.dte == null ? "" : String(snap.front.dte);
   const ratio = ratioLabel(movePts, snap?.absAvgErnMv);
   const last = lastMovesLabel(snap);
-  const cpvol = pairLabel(snap?.callVolume, snap?.putVolume);
-  const cpoi = pairLabel(snap?.callOi, snap?.putOi);
   const strikeTitle =
     snap?.front?.loStrike != null && snap?.front?.hiStrike != null
       ? `ATM strikes ${formatUsdMoney(snap.front.loStrike)}–${formatUsdMoney(snap.front.hiStrike)}`
@@ -407,6 +410,14 @@ function paintCompaniesOptions(symbol, snap, placeholder = "—") {
       el.textContent = value || placeholder;
       if (title) el.title = title;
     };
+    const setFlow = (key, callVal, putVal) => {
+      const el = row.querySelector(`[data-opt="${key}"]`);
+      if (!el) return;
+      const c = el.querySelector("[data-flow=c]");
+      const p = el.querySelector("[data-flow=p]");
+      if (c) c.textContent = formatCompactCount(callVal) || placeholder;
+      if (p) p.textContent = formatCompactCount(putVal) || placeholder;
+    };
     set("move", move, "Percent jump the options market is pricing into the report");
     set("straddle", straddle, strikeTitle);
     set("dte", dte, "Days until that straddle’s expiration");
@@ -414,8 +425,8 @@ function paintCompaniesOptions(symbol, snap, placeholder = "—") {
     set("ratio", ratio, "Implied move ÷ average actual. Above 1.0 means this print is priced bigger than usual");
     set("last", last, "Actual gap moves at the last three earnings");
     set("iv", iv, "At-the-money implied volatility (annualized)");
-    set("cpvol", cpvol, "Call volume / put volume today");
-    set("cpoi", cpoi, "Call open interest / put open interest (contracts still open)");
+    setFlow("cpvol", snap?.callVolume, snap?.putVolume);
+    setFlow("cpoi", snap?.callOi, snap?.putOi);
   });
 }
 
@@ -1294,8 +1305,14 @@ function renderCompanies(calls) {
         <div class="num" data-opt="ratio">…</div>
         <div class="num" data-opt="last">…</div>
         <div class="num" data-opt="iv">…</div>
-        <div class="num" data-opt="cpvol">…</div>
-        <div class="num" data-opt="cpoi">…</div>`
+        <div class="flow-cell" data-opt="cpvol" title="Call volume / put volume today">
+          <span class="flow-lab">C</span><span class="flow-val" data-flow="c">…</span>
+          <span class="flow-lab">P</span><span class="flow-val" data-flow="p">…</span>
+        </div>
+        <div class="flow-cell" data-opt="cpoi" title="Call open interest / put open interest">
+          <span class="flow-lab">C</span><span class="flow-val" data-flow="c">…</span>
+          <span class="flow-lab">P</span><span class="flow-val" data-flow="p">…</span>
+        </div>`
     : "";
   const body = rows
     .map((call) => {
@@ -1337,7 +1354,7 @@ function renderCompanies(calls) {
         <div class="g-span g-stock">Stock</div>
         <div class="g-span g-event">Priced for this print</div>
         <div class="g-span g-hist">Versus history</div>
-        <div class="g-span g-iv">Vol</div>
+        <div class="g-span g-iv">IV</div>
         <div class="g-span g-pos">Call vs put</div>
       </div>`
           : ""
@@ -1360,8 +1377,8 @@ function renderCompanies(calls) {
         <div class="num" title="Implied move divided by average actual. Above 1.0 is priced richer than usual">Imp/avg</div>
         <div class="num" title="Actual gap moves at the last three earnings">Last 3</div>
         <div class="num" title="At-the-money implied volatility">IV</div>
-        <div class="num" title="Call volume / put volume today">C/P vol</div>
-        <div class="num" title="Call open interest / put open interest">C/P OI</div>`
+        <div class="num" title="Call volume / put volume today">Volume</div>
+        <div class="num" title="Call open interest / put open interest">Open int.</div>`
             : ""
         }
       </div>
