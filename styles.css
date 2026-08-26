@@ -523,7 +523,7 @@ input[type="search"]:focus {
   --companies-straddle: 6.8rem;
   --companies-dte: 4.2rem;
   --companies-ratio: 5.6rem;
-  --companies-last: 5.4rem;
+  --companies-last: 9.6rem;
   --companies-flow: 6.6rem;
   display: flex;
   flex-direction: column;
@@ -648,33 +648,14 @@ input[type="search"]:focus {
   white-space: nowrap;
 }
 
-.companies-grid .call-row {
-  align-items: center;
-}
-
-.companies-grid .call-row > .flow-cell,
-.companies-grid .call-row > .last-cell {
+.companies-grid .call-row > .flow-cell {
   white-space: normal;
-  overflow: hidden;
 }
 
 .companies-grid .call-row > .last-cell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-auto-rows: auto;
-  justify-items: end;
-  align-content: center;
-  row-gap: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
-  line-height: 1.2;
-}
-
-.last-move {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 
 .flow-cell {

@@ -381,6 +381,12 @@ function lastMoveRows(snap) {
   return (snap?.history || []).filter((row) => row.move != null).slice(0, 3);
 }
 
+function lastMovesLabel(snap) {
+  const rows = lastMoveRows(snap);
+  if (!rows.length) return "";
+  return rows.map((row) => formatPctPoints(row.move)).join(" ");
+}
+
 function optionMovePts(snap) {
   if (!snap) return null;
   return snap.impliedMove ?? snap.impliedEarningsMove ?? null;
@@ -396,7 +402,7 @@ function paintCompaniesOptions(symbol, snap, placeholder = "—") {
   const straddle = formatUsdMoney(snap?.front?.straddle);
   const dte = snap?.front?.dte == null ? "" : String(snap.front.dte);
   const ratio = ratioLabel(movePts, snap?.absAvgErnMv);
-  const lastMoves = lastMoveRows(snap);
+  const last = lastMovesLabel(snap);
   const strikeTitle =
     snap?.front?.loStrike != null && snap?.front?.hiStrike != null
       ? `ATM strikes ${formatUsdMoney(snap.front.loStrike)}–${formatUsdMoney(snap.front.hiStrike)}`
@@ -421,18 +427,10 @@ function paintCompaniesOptions(symbol, snap, placeholder = "—") {
     set("dte", dte, "Days until that straddle’s expiration");
     set("avg", avg, "Typical size of the actual move around past reports");
     set("ratio", ratio, "Implied move ÷ average actual. Above 1.0 means this print is priced bigger than usual");
+    set("last", last, last
+      ? `Actual gap moves at the last three earnings: ${last}`
+      : "Actual gap moves at the last three earnings");
     set("iv", iv, "At-the-money implied volatility (annualized)");
-    const lastEl = row.querySelector('[data-opt="last"]');
-    if (lastEl) {
-      lastEl.querySelectorAll("[data-last]").forEach((node) => {
-        const index = Number(node.getAttribute("data-last"));
-        const move = lastMoves[index]?.move;
-        node.textContent = Number.isFinite(Number(move)) ? formatPctPoints(move) : placeholder;
-      });
-      lastEl.title = lastMoves.length
-        ? `Actual gap moves at the last three earnings: ${lastMoves.map((hist) => formatPctPoints(hist.move)).join(", ")}`
-        : "Actual gap moves at the last three earnings";
-    }
     setFlow("cpvol", snap?.callVolume, snap?.putVolume);
     setFlow("cpoi", snap?.callOi, snap?.putOi);
   });
@@ -1317,11 +1315,7 @@ function renderCompanies(calls) {
         <div class="num" data-opt="dte">…</div>
         <div class="num" data-opt="avg">…</div>
         <div class="num" data-opt="ratio">…</div>
-        <div class="num last-cell" data-opt="last" title="Actual gap moves at the last three earnings">
-          <div class="last-move" data-last="0">…</div>
-          <div class="last-move" data-last="1">…</div>
-          <div class="last-move" data-last="2">…</div>
-        </div>
+        <div class="num last-cell" data-opt="last" title="Actual gap moves at the last three earnings">…</div>
         <div class="num" data-opt="iv">…</div>
         <div class="flow-cell" data-opt="cpvol" title="Call volume / put volume today">
           <span class="flow-lab">C</span><span class="flow-val" data-flow="c">…</span>

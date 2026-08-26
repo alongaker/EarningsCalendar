@@ -510,7 +510,7 @@ assert(appJs.includes("hydrateCompaniesOptions"), "companies list can fill ORATS
 assert(appJs.includes("Imp. move"), "companies table has implied move column");
 assert(appJs.includes("Imp/avg"), "companies table has implied vs average");
 assert(appJs.includes("Last 3"), "companies table has last three earnings moves");
-assert(appJs.includes("last-cell") && appJs.includes("data-last"), "last three moves are stacked cells, not one wide line");
+assert(appJs.includes("last-cell"), "last three moves use a clipped last-cell");
 assert(appJs.includes("options-guide"), "companies table explains options columns");
 assert(ORATS_CACHE_HOURS === 2, "ORATS cache is two hours");
 assert(html.includes("./app.js"), "index loads app.js");
