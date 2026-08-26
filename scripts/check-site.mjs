@@ -508,6 +508,9 @@ assert(appJs.includes("nextBusinessDaysIso"), "companies list uses the next five
 assert(appJs.includes("Next 5 business days"), "companies heading names the five-day window");
 assert(appJs.includes("hydrateCompaniesOptions"), "companies list can fill ORATS columns from cache");
 assert(appJs.includes("Imp. move"), "companies table has implied move column");
+assert(appJs.includes("Imp/avg"), "companies table has implied vs average");
+assert(appJs.includes("Last 3"), "companies table has last three earnings moves");
+assert(appJs.includes("options-guide"), "companies table explains options columns");
 assert(ORATS_CACHE_HOURS === 2, "ORATS cache is two hours");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");

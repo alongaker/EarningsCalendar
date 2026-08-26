@@ -356,6 +356,28 @@ function writeOratsCache(ticker, snapshot) {
   return at;
 }
 
+function formatCompactCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(Math.round(n));
+}
+
+function lastMovesLabel(snap) {
+  const rows = (snap?.history || []).filter((row) => row.move != null).slice(0, 3);
+  if (!rows.length) return "";
+  return rows.map((row) => formatPctPoints(row.move)).join(" · ");
+}
+
+function pairLabel(left, right) {
+  const a = formatCompactCount(left);
+  const b = formatCompactCount(right);
+  if (!a && !b) return "";
+  return `${a || "—"} / ${b || "—"}`;
+}
+
 function optionMovePts(snap) {
   if (!snap) return null;
   return snap.impliedMove ?? snap.impliedEarningsMove ?? null;
@@ -364,19 +386,36 @@ function optionMovePts(snap) {
 function paintCompaniesOptions(symbol, snap, placeholder = "—") {
   const rows = els.companiesBoard?.querySelectorAll(`.call-row[data-symbol="${CSS.escape(symbol)}"]`);
   if (!rows?.length) return;
-  const move = formatPctPoints(optionMovePts(snap));
+  const movePts = optionMovePts(snap);
+  const move = formatPctPoints(movePts);
   const avg = formatPctPoints(snap?.absAvgErnMv);
   const iv = formatPctPoints(snap?.iv30d || snap?.iv || snap?.front?.atmIv);
   const straddle = formatUsdMoney(snap?.front?.straddle);
+  const dte = snap?.front?.dte == null ? "" : String(snap.front.dte);
+  const ratio = ratioLabel(movePts, snap?.absAvgErnMv);
+  const last = lastMovesLabel(snap);
+  const cpvol = pairLabel(snap?.callVolume, snap?.putVolume);
+  const cpoi = pairLabel(snap?.callOi, snap?.putOi);
+  const strikeTitle =
+    snap?.front?.loStrike != null && snap?.front?.hiStrike != null
+      ? `ATM strikes ${formatUsdMoney(snap.front.loStrike)}–${formatUsdMoney(snap.front.hiStrike)}`
+      : "Price of buying the ATM call and put";
   rows.forEach((row) => {
-    const set = (key, value) => {
+    const set = (key, value, title) => {
       const el = row.querySelector(`[data-opt="${key}"]`);
-      if (el) el.textContent = value || placeholder;
+      if (!el) return;
+      el.textContent = value || placeholder;
+      if (title) el.title = title;
     };
-    set("move", move);
-    set("avg", avg);
-    set("iv", iv);
-    set("straddle", straddle);
+    set("move", move, "Percent jump the options market is pricing into the report");
+    set("straddle", straddle, strikeTitle);
+    set("dte", dte, "Days until that straddle’s expiration");
+    set("avg", avg, "Typical size of the actual move around past reports");
+    set("ratio", ratio, "Implied move ÷ average actual. Above 1.0 means this print is priced bigger than usual");
+    set("last", last, "Actual gap moves at the last three earnings");
+    set("iv", iv, "At-the-money implied volatility (annualized)");
+    set("cpvol", cpvol, "Call volume / put volume today");
+    set("cpoi", cpoi, "Call open interest / put open interest (contracts still open)");
   });
 }
 
@@ -952,6 +991,7 @@ function applyNavCollapsed(collapsed) {
     els.navLinks.hidden = collapsed;
     els.navLinks.setAttribute("aria-hidden", collapsed ? "true" : "false");
   }
+  requestAnimationFrame(syncCompaniesOverflow);
 }
 
 function applyHash() {
@@ -1248,9 +1288,14 @@ function renderCompanies(calls) {
   const showOpts = Boolean(state.keys.orats);
   const optionCells = showOpts
     ? `<div class="num" data-opt="move">…</div>
+        <div class="num" data-opt="straddle">…</div>
+        <div class="num" data-opt="dte">…</div>
         <div class="num" data-opt="avg">…</div>
+        <div class="num" data-opt="ratio">…</div>
+        <div class="num" data-opt="last">…</div>
         <div class="num" data-opt="iv">…</div>
-        <div class="num" data-opt="straddle">…</div>`
+        <div class="num" data-opt="cpvol">…</div>
+        <div class="num" data-opt="cpoi">…</div>`
     : "";
   const body = rows
     .map((call) => {
@@ -1276,26 +1321,47 @@ function renderCompanies(calls) {
     </div>
     ${
       showOpts
-        ? `<p class="options-lede">Implied move, average earnings move, IV, and front straddle from ORATS. Cached ${ORATS_CACHE_HOURS} hours in this browser — reload does not spend quota until then. One call per ticker (${rows.length} names on this list).</p>`
+        ? `<div class="options-guide">
+      <p>Read left to right: when it reports, the stock, what options are pricing for the print, whether that is rich versus history, then call vs put activity.</p>
+      <p><strong>Imp. move</strong> is the jump the market is pricing. <strong>Imp/avg</strong> over 1.0 means this report is priced bigger than usual. <strong>Last 3</strong> are the actual moves at the last three prints. <strong>DTE</strong> is days until the straddle expires. <strong>C/P</strong> is calls vs puts (today’s volume, then contracts still open). Hover a column for a reminder. Cached ${ORATS_CACHE_HOURS}h · 1 ORATS call per ticker (${rows.length} names).</p>
+    </div>`
         : ""
     }
     <div class="companies-scroll">
     <div class="companies-grid${showOpts ? " companies-grid--options" : ""}">
+      ${
+        showOpts
+          ? `<div class="companies-grid__head companies-grid__groups" aria-hidden="true">
+        <div class="companies-pin"><span></span><span>Name</span></div>
+        <div class="g-span g-when">When</div>
+        <div class="g-span g-stock">Stock</div>
+        <div class="g-span g-event">Priced for this print</div>
+        <div class="g-span g-hist">Versus history</div>
+        <div class="g-span g-iv">Vol</div>
+        <div class="g-span g-pos">Call vs put</div>
+      </div>`
+          : ""
+      }
       <div class="companies-grid__head">
         <div class="companies-pin">
           <span>Ticker</span>
           <span>Company</span>
         </div>
-        <div class="num">Date</div>
-        <div class="num">Until Call</div>
+        <div class="num" title="Report date">Date</div>
+        <div class="num" title="Calendar days until the call">Until Call</div>
         <div class="num">Price</div>
         <div class="num">Market cap</div>
         ${
           showOpts
-            ? `<div class="num">Imp. move</div>
-        <div class="num">Avg move</div>
-        <div class="num">IV</div>
-        <div class="num">Straddle</div>`
+            ? `<div class="num" title="Percent jump the options market is pricing into the report">Imp. move</div>
+        <div class="num" title="Cost of the ATM call plus put">Straddle</div>
+        <div class="num" title="Days until that straddle expires">DTE</div>
+        <div class="num" title="Typical actual move around past reports">Avg move</div>
+        <div class="num" title="Implied move divided by average actual. Above 1.0 is priced richer than usual">Imp/avg</div>
+        <div class="num" title="Actual gap moves at the last three earnings">Last 3</div>
+        <div class="num" title="At-the-money implied volatility">IV</div>
+        <div class="num" title="Call volume / put volume today">C/P vol</div>
+        <div class="num" title="Call open interest / put open interest">C/P OI</div>`
             : ""
         }
       </div>

@@ -521,6 +521,10 @@ input[type="search"]:focus {
   --companies-avg: 6.4rem;
   --companies-iv: 5.4rem;
   --companies-straddle: 6.8rem;
+  --companies-dte: 4.2rem;
+  --companies-ratio: 5.6rem;
+  --companies-last: 9.2rem;
+  --companies-flow: 7.2rem;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -528,7 +532,7 @@ input[type="search"]:focus {
 }
 
 .companies-grid--options {
-  min-width: 74rem;
+  min-width: 108rem;
 }
 
 .companies-grid__head,
@@ -553,9 +557,72 @@ input[type="search"]:focus {
     var(--companies-price)
     var(--companies-cap)
     var(--companies-move)
+    var(--companies-straddle)
+    var(--companies-dte)
     var(--companies-avg)
+    var(--companies-ratio)
+    var(--companies-last)
     var(--companies-iv)
-    var(--companies-straddle);
+    var(--companies-flow)
+    var(--companies-flow);
+}
+
+.companies-grid__groups .companies-pin {
+  background: var(--ink-2);
+}
+
+.companies-grid__groups .g-span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-bottom: 1px solid var(--rule-strong);
+  color: var(--cream-dim);
+}
+
+.companies-grid__groups .g-when {
+  grid-column: 2 / 4;
+}
+
+.companies-grid__groups .g-stock {
+  grid-column: 4 / 6;
+}
+
+.companies-grid__groups .g-event {
+  grid-column: 6 / 9;
+}
+
+.companies-grid__groups .g-hist {
+  grid-column: 9 / 12;
+}
+
+.companies-grid__groups .g-iv {
+  grid-column: 12 / 13;
+}
+
+.companies-grid__groups .g-pos {
+  grid-column: 13 / 15;
+}
+
+.options-guide {
+  max-width: 72rem;
+  margin: 0 0 14px;
+  color: var(--cream-dim);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.options-guide p {
+  margin: 0 0 8px;
+}
+
+.options-guide p:last-child {
+  margin-bottom: 0;
+}
+
+.options-guide strong {
+  color: var(--cream);
+  font-weight: 600;
 }
 
 .companies-grid__head > *,
