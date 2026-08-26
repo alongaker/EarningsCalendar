@@ -15,7 +15,7 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./styles.css?v=col-guide4" />
+    <link rel="stylesheet" href="./styles.css?v=ivrank" />
   </head>
   <body>
     <div class="shell">
@@ -162,8 +162,8 @@
       <h3 class="keys-list-title" id="options-keys-title">Options-specific API key</h3>
       <p class="keys-rank-hint">
         Separate from calendar extras. Paste an ORATS token here for implied
-        move, IV, straddles, and past earnings moves. The Companies list and
-        company page share a 2-hour cache in this browser (1 call per ticker
+        move, IV, IV rank, straddles, and past earnings moves. The Companies list and
+        company page share a 2-hour cache in this browser (2 calls per ticker
         until it expires). Reloading does not spend quota while the cache is
         fresh. The token is not ranked with Finnhub or the other earnings sources.
       </p>
@@ -185,6 +185,6 @@
         if (saved.collapsed) document.documentElement.classList.add("nav-collapsed");
       } catch {}
     </script>
-    <script src="./app.js?v=col-guide4" type="module"></script>
+    <script src="./app.js?v=ivrank" type="module"></script>
   </body>
 </html>

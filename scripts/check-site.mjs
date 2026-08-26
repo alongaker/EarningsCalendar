@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { normalizeRow, parseMarketCap, formatMarketCap } from "./earnings-lib.mjs";
-import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, fetchOratsSnapshot, formatMdY, daysUntilIso, nextBusinessDaysIso, formatPctPoints, ORATS_CACHE_HOURS } from "../providers.js";
+import { mergeCalls, normalizeFinnhub, mapTime, parseCsv, normalizeAlphaVantage, normalizeApiNinjas, normalizeEodhd, normalizeTwelveData, formatEps, formatFiscalPeriod, formatCompanyName, stripCompanySuffixes, marketDateIso, windowUpcoming, isOperatingCompany, isPlaceholderName, keepCalendarRow, providersByName, rankedIds, reorderIds, OPTIONS_PROVIDERS, testOratsKey, fetchOratsSnapshot, formatMdY, daysUntilIso, nextBusinessDaysIso, formatPctPoints, ORATS_CACHE_HOURS, ORATS_SNAPSHOT_CALLS } from "../providers.js";
 import { isSymbol, normalizeCompany, roundToHundredth, enrichSparseCalls, enrichCallPrices, lastQuarterRevenueFromTable, parseRevenueCell } from "../company.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -455,38 +455,50 @@ try {
   const snap = await fetchOratsSnapshot("tok", "NVDA", {
     fetchImpl: async (url) => {
       urls.push(String(url));
+      const ivrank = String(url).includes("/ivrank");
       return {
         ok: true,
         status: 200,
         text: async () =>
           JSON.stringify({
             data: [
-              {
-                ticker: "NVDA",
-                pxAtmIv: 100,
-                absAvgErnMv: 5.2,
-                dtExM1: 5,
-                atmIvM1: 55,
-                straPxM1: 7.4,
-                orIvXern20d: 0.31,
-                lastErn: "2026-05-28",
-                lastErnTod: 3,
-                ernDate1: "2026-05-28",
-                ernMv1: 6.1,
-                ernStraPct1: 5.8,
-              },
+              ivrank
+                ? {
+                    ticker: "NVDA",
+                    iv: 0.55,
+                    ivRank1y: 72,
+                    ivPct1y: 0.81,
+                    ivRank1m: 44,
+                    ivPct1m: 0.4,
+                  }
+                : {
+                    ticker: "NVDA",
+                    pxAtmIv: 100,
+                    absAvgErnMv: 5.2,
+                    dtExM1: 5,
+                    atmIvM1: 55,
+                    straPxM1: 7.4,
+                    orIvXern20d: 0.31,
+                    lastErn: "2026-05-28",
+                    lastErnTod: 3,
+                    ernDate1: "2026-05-28",
+                    ernMv1: 6.1,
+                    ernStraPct1: 5.8,
+                  },
             ],
           }),
       };
     },
   });
-  assert(urls.length === 1, "ORATS snapshot uses one endpoint");
-  assert(urls[0].includes("/cores"), "snapshot hits cores only");
-  assert(!urls.some((u) => u.includes("/summaries") || u.includes("/ivrank")), "does not hit summaries or ivrank");
+  assert(urls.length === 2, "ORATS snapshot uses cores and ivrank");
+  assert(urls.some((u) => u.includes("/cores")), "snapshot hits cores");
+  assert(urls.some((u) => u.includes("/ivrank")), "snapshot hits ivrank");
+  assert(!urls.some((u) => u.includes("/summaries")), "does not hit summaries");
   assert(snap.impliedMove > 7 && snap.impliedMove < 8, "implied move from straddle over spot");
   assert(formatPctPoints(snap.impliedMove) === "7.4%", "format implied move");
   assert(snap.front.straddle === 7.4, "front straddle from cores");
   assert(snap.history.length === 1 && snap.history[0].move > 6, "past earnings move from cores");
+  assert(snap.ivRank1y === 72, "1y IV rank from ivrank");
 }
 assert(html.includes("filter-toggle"), "index has collapsible filter bar");
 assert(html.includes("Market Cap"), "filter panel labels market cap");
@@ -510,9 +522,11 @@ assert(appJs.includes("hydrateCompaniesOptions"), "companies list can fill ORATS
 assert(appJs.includes("Implied Move"), "companies table has implied move column");
 assert(appJs.includes("Imp/avg"), "companies table has implied vs average");
 assert(appJs.includes("Last 3"), "companies table has last three earnings moves");
+assert(appJs.includes("IV Rank"), "companies table has 1y IV rank");
 assert(appJs.includes("last-cell") && appJs.includes("data-last"), "last three moves stack as block lines");
 assert(appJs.includes("options-guide") && appJs.includes("Column guide") && appJs.includes("options-guide__row"), "companies table has a column guide dropdown");
 assert(ORATS_CACHE_HOURS === 2, "ORATS cache is two hours");
+assert(ORATS_SNAPSHOT_CALLS === 2, "ORATS snapshot uses cores plus ivrank");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");
 

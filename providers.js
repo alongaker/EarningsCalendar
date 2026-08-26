@@ -57,7 +57,7 @@ export const OPTIONS_PROVIDERS = [
     id: "orats",
     name: "ORATS",
     blurb:
-      "Options-only key for implied move, IV, and straddles on Companies and the company page. Delayed data, 20,000 requests per month. One call per ticker, cached 2 hours in this browser. Not mixed into the Nasdaq calendar.",
+      "Options-only key for implied move, IV, IV rank, and straddles on Companies and the company page. Delayed data. Two calls per ticker, cached 2 hours in this browser. Not mixed into the Nasdaq calendar.",
     signup: "https://orats.com/data-api",
     docs: "https://orats.com/docs/delayed-data-api",
     placeholder: "ORATS API token",
@@ -779,7 +779,7 @@ export async function testOratsKey(apiKey, { fetchImpl = fetch } = {}) {
   return { ok: true, ticker: String(rows[0]?.ticker || "AAPL") };
 }
 
-export const ORATS_SNAPSHOT_CALLS = 1;
+export const ORATS_SNAPSHOT_CALLS = 2;
 export const ORATS_CACHE_HOURS = 2;
 
 const ORATS_TOD = {
@@ -966,7 +966,14 @@ export async function fetchOratsSnapshot(apiKey, ticker, { fetchImpl = fetch } =
   const symbol = canonicalSymbol(ticker);
   if (!key) throw new Error("API key required");
   if (!symbol) throw new Error("Ticker required");
-  const cores = await fetchOratsEndpoint("cores", key, symbol, fetchImpl);
-  if (!cores) throw new Error("ORATS returned no options data");
-  return normalizeOratsSnapshot(symbol, { cores });
+  const [coresResult, ivrankResult] = await Promise.allSettled([
+    fetchOratsEndpoint("cores", key, symbol, fetchImpl),
+    fetchOratsEndpoint("ivrank", key, symbol, fetchImpl),
+  ]);
+  if (coresResult.status !== "fulfilled" || !coresResult.value) {
+    const err = coresResult.status === "rejected" ? coresResult.reason : null;
+    throw err instanceof Error ? err : new Error("ORATS returned no options data");
+  }
+  const ivrank = ivrankResult.status === "fulfilled" ? ivrankResult.value : null;
+  return normalizeOratsSnapshot(symbol, { cores: coresResult.value, ivrank });
 }

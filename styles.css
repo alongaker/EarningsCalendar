@@ -520,6 +520,7 @@ input[type="search"]:focus {
   --companies-move: 7.2rem;
   --companies-avg: 7.2rem;
   --companies-iv: 7.4rem;
+  --companies-ivrank: 5.6rem;
   --companies-straddle: 6.8rem;
   --companies-dte: 4.2rem;
   --companies-ratio: 5.6rem;
@@ -532,7 +533,7 @@ input[type="search"]:focus {
 }
 
 .companies-grid--options {
-  min-width: 110rem;
+  min-width: 116rem;
 }
 
 .companies-grid__head,
@@ -563,6 +564,7 @@ input[type="search"]:focus {
     var(--companies-ratio)
     var(--companies-last)
     var(--companies-iv)
+    var(--companies-ivrank)
     var(--companies-flow)
     var(--companies-flow);
 }

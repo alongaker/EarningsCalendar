@@ -11,7 +11,7 @@ const TIME_LABEL = {
 const KEYS_STORAGE = "earningsCalendar.apiKeys.v1";
 const ORDER_STORAGE = "earningsCalendar.apiKeyOrder.v1";
 const NAV_STORAGE = "earningsCalendar.sidenav.v1";
-const ORATS_STORAGE = "earningsCalendar.orats.v1";
+const ORATS_STORAGE = "earningsCalendar.orats.v2";
 
 const state = {
   base: null,
@@ -434,6 +434,11 @@ function paintCompaniesOptions(symbol, snap, placeholder = "—") {
       lastEl.title = lastTitle;
     }
     set("iv", iv, "At-the-money implied volatility (annualized)");
+    set(
+      "ivrank",
+      snap ? formatRank(snap.ivRank1y) : "",
+      "1-year IV rank, 0–100. Higher means today’s IV is rich versus its own history"
+    );
     setFlow("cpvol", snap?.callVolume, snap?.putVolume);
     setFlow("cpoi", snap?.callOi, snap?.putOi);
   });
@@ -455,6 +460,7 @@ function companiesColumnGuide(nameCount) {
     ["Imp/avg", "Implied move divided by average actual. Above 1.0 is priced richer than usual"],
     ["Last 3", "Actual gap moves at the last three earnings"],
     ["Implied Volatility", "At-the-money implied volatility, annualized"],
+    ["IV Rank", "1-year IV rank, 0–100. Higher means today’s IV is rich versus its own history"],
     ["Volume", "Call volume / put volume today"],
     ["Open Interest", "Call open interest / put open interest"],
   ];
@@ -469,7 +475,7 @@ function companiesColumnGuide(nameCount) {
           )
           .join("")}
       </dl>
-      <p class="options-guide__note">Cached ${ORATS_CACHE_HOURS}h · 1 ORATS call per ticker (${nameCount} names).</p>
+      <p class="options-guide__note">Cached ${ORATS_CACHE_HOURS}h · ${ORATS_SNAPSHOT_CALLS} ORATS calls per ticker (${nameCount} names).</p>
     </div>
   </details>`;
 }
@@ -620,7 +626,7 @@ function renderOptionsBlock(symbol, profile) {
   if (!state.keys.orats) {
     return `<section class="history options-block">
       <h3>Options</h3>
-      <p class="empty">Add an ORATS key in Settings to load implied move, straddles, and past earnings moves. That uses ${ORATS_SNAPSHOT_CALLS} call per ticker, then caches ${ORATS_CACHE_HOURS} hours in this browser.</p>
+      <p class="empty">Add an ORATS key in Settings to load implied move, IV rank, straddles, and past earnings moves. That uses ${ORATS_SNAPSHOT_CALLS} calls per ticker, then caches ${ORATS_CACHE_HOURS} hours in this browser.</p>
     </section>`;
   }
   const pack = state.optionsBySymbol[symbol];
@@ -1357,6 +1363,7 @@ function renderCompanies(calls) {
           <div class="last-move" data-last="2">…</div>
         </div>
         <div class="num" data-opt="iv">…</div>
+        <div class="num" data-opt="ivrank">…</div>
         <div class="flow-cell" data-opt="cpvol" title="Call volume / put volume today">
           <span class="flow-lab">C</span><span class="flow-val" data-flow="c">…</span>
           <span class="flow-lab">P</span><span class="flow-val" data-flow="p">…</span>
@@ -1413,6 +1420,7 @@ function renderCompanies(calls) {
         <div class="num" title="Implied move divided by average actual. Above 1.0 is priced richer than usual">Imp/avg</div>
         <div class="num" title="Actual gap moves at the last three earnings">Last 3</div>
         <div class="num" title="At-the-money implied volatility">Implied Volatility</div>
+        <div class="num" title="1-year IV rank, 0–100. Higher means today’s IV is rich versus its own history">IV Rank</div>
         <div class="num" title="Call volume / put volume today">Volume</div>
         <div class="num" title="Call open interest / put open interest">Open Interest</div>`
             : ""
