@@ -440,6 +440,44 @@ function paintCompaniesOptions(symbol, snap, placeholder = "—") {
 }
 
 let companiesHydrateGen = 0;
+let companiesGuideOpen = false;
+
+function companiesColumnGuide(nameCount) {
+  const rows = [
+    ["Date", "Report date"],
+    ["Until Call", "Calendar days until the call"],
+    ["Price", "Last stock price"],
+    ["Market cap", "Company market value"],
+    ["Implied Move", "Percent jump the options market is pricing into the report"],
+    ["Straddle", "Cost of the ATM call plus put"],
+    ["DTE", "Days until that straddle expires"],
+    ["Average Move", "Typical actual move around past reports"],
+    ["Imp/avg", "Implied move divided by average actual. Above 1.0 is priced richer than usual"],
+    ["Last 3", "Actual gap moves at the last three earnings"],
+    ["Implied Volatility", "At-the-money implied volatility, annualized"],
+    ["Volume", "Call volume / put volume today"],
+    ["Open Interest", "Call open interest / put open interest"],
+  ];
+  return `<details class="options-guide"${companiesGuideOpen ? " open" : ""}>
+    <summary class="options-guide__toggle">Column guide</summary>
+    <div class="options-guide__body">
+      <table class="table options-guide__table">
+        <thead>
+          <tr><th>Column</th><th>Meaning</th></tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map(
+              ([col, meaning]) =>
+                `<tr><th scope="row">${escapeHtml(col)}</th><td>${escapeHtml(meaning)}</td></tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>
+      <p class="options-guide__note">Cached ${ORATS_CACHE_HOURS}h · 1 ORATS call per ticker (${nameCount} names).</p>
+    </div>
+  </details>`;
+}
 
 async function hydrateCompaniesOptions(calls) {
   if (!state.keys.orats || state.tab !== "companies" || !calls.length) return;
@@ -1357,10 +1395,7 @@ function renderCompanies(calls) {
     </div>
     ${
       showOpts
-        ? `<div class="options-guide">
-      <p>Read left to right: when it reports, the stock, what options are pricing for the print, whether that is rich versus history, then call vs put activity.</p>
-      <p><strong>Implied Move</strong> is the jump the market is pricing. <strong>Imp/avg</strong> over 1.0 means this report is priced bigger than usual. <strong>Last 3</strong> are the actual moves at the last three prints. <strong>DTE</strong> is days until the straddle expires. <strong>C/P</strong> is calls vs puts (today’s volume, then contracts still open). Hover a column for a reminder. Cached ${ORATS_CACHE_HOURS}h · 1 ORATS call per ticker (${rows.length} names).</p>
-    </div>`
+        ? companiesColumnGuide(rows.length)
         : ""
     }
     <div class="companies-scroll">
@@ -1705,6 +1740,12 @@ document.querySelectorAll("[data-cap]").forEach((btn) => {
   });
 });
 
+
+els.companiesBoard?.addEventListener("toggle", (event) => {
+  if (event.target.classList?.contains("options-guide")) {
+    companiesGuideOpen = event.target.open;
+  }
+}, true);
 
 els.companiesBoard?.addEventListener("click", (event) => {
   const row = event.target.closest("[data-symbol]");

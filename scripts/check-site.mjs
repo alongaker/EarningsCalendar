@@ -511,7 +511,7 @@ assert(appJs.includes("Implied Move"), "companies table has implied move column"
 assert(appJs.includes("Imp/avg"), "companies table has implied vs average");
 assert(appJs.includes("Last 3"), "companies table has last three earnings moves");
 assert(appJs.includes("last-cell") && appJs.includes("data-last"), "last three moves stack as block lines");
-assert(appJs.includes("options-guide"), "companies table explains options columns");
+assert(appJs.includes("options-guide") && appJs.includes("Column guide"), "companies table has a column guide dropdown");
 assert(ORATS_CACHE_HOURS === 2, "ORATS cache is two hours");
 assert(html.includes("./app.js"), "index loads app.js");
 assert(html.includes("./styles.css"), "index loads styles");
