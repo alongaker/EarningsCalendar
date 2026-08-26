@@ -685,6 +685,7 @@ input[type="search"]:focus {
 }
 
 .companies-grid .call-row > .last-cell {
+  font-size: 13px;
   line-height: 1.25;
 }
 
@@ -714,6 +715,8 @@ input[type="search"]:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 13px;
 }
 
 .companies-grid .num {
