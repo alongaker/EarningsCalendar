@@ -568,8 +568,10 @@ input[type="search"]:focus {
 }
 
 .options-guide {
-  max-width: 40rem;
-  margin: 0 0 14px;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 16px;
+  overflow: visible;
   border: 1px solid var(--rule);
   background: var(--ink-2);
 }
@@ -578,7 +580,7 @@ input[type="search"]:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 10px 14px;
   color: var(--cream);
   font-family: var(--mono);
   font-size: 12px;
@@ -596,6 +598,7 @@ input[type="search"]:focus {
 
 .options-guide__toggle::after {
   content: "";
+  flex: 0 0 auto;
   width: 8px;
   height: 8px;
   border-right: 1.5px solid var(--cream-dim);
@@ -608,32 +611,40 @@ input[type="search"]:focus {
 }
 
 .options-guide__body {
-  padding: 0 12px 12px;
+  padding: 0 16px 16px;
+  overflow: visible;
   border-top: 1px solid var(--rule);
 }
 
 .options-guide__table {
-  margin-top: 10px;
+  table-layout: auto;
+  width: 100%;
+  margin-top: 12px;
 }
 
 .options-guide__table th[scope="row"] {
-  width: 11.5rem;
-  padding: 7px 10px 7px 0;
+  width: 14rem;
+  max-width: 18rem;
+  padding: 8px 18px 8px 0;
   color: var(--cream);
   font-weight: 500;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
   vertical-align: top;
 }
 
 .options-guide__table td {
-  padding: 7px 0;
+  padding: 8px 0;
   color: var(--cream-dim);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .options-guide__note {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   color: var(--mute);
   font-family: var(--mono);
   font-size: 12px;
